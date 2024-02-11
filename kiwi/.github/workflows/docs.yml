@@ -1,0 +1,45 @@
+name: Documentation building
+on:
+  schedule:
+    - cron: '0 0 * * 2'
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/docs.yml
+      - "kiwi/**"
+      - "py/**"
+      - "docs/**"
+      - setup.py
+      - pyproject.toml
+
+jobs:
+  docs:
+    name: Docs building
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Get history and tags for SCM versioning to work
+        run: |
+          git fetch --prune --unshallow
+          git fetch --depth=1 origin +refs/tags/*:refs/tags/*
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r docs/requirements.txt
+      - name: Install project
+        run: |
+          pip install .
+      - name: Install graphviz
+        uses: ts-graphviz/setup-graphviz@v1
+      - name: Build documentation
+        run: |
+          mkdir docs_output;
+          sphinx-build docs/source docs_output -W -b html;
