@@ -1,0 +1,4 @@
+ruff
+mypy
+# Allow to lint tests using mypy
+pytest
