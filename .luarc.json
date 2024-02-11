@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "LuaJIT",
+  "runtime.path": [
+    "./?/init.lua",
+    "./?.lua",
+
+    "lua_modules/share/lua/5.1/?.lua",
+    "lua_modules/share/lua/5.1/?/init.lua"
+  ],
+  "workspace.library": ["lua_modules/share/lua/5.1"],
+  "workspace.checkThirdParty": false
+}
