@@ -7,5 +7,4 @@ insert_final_newline = true
 [{*.lua,*.rockspec,.luacov}]
 indent_style = space
 indent_size = 3
-call_parentheses = nosingletable
-max_line_length = 98
+max_line_length = 105

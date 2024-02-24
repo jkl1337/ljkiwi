@@ -145,7 +145,7 @@ public:
 	/* Dump a representation of the solver internals to stdout.
 
 	*/
-	void dump()
+	void dump() const
 	{
 		debug::dump( m_impl );
 	}
@@ -153,7 +153,7 @@ public:
 	/* Dump a representation of the solver internals to a stream.
 
 	*/
-	void dump( std::ostream& out )
+	void dump( std::ostream& out ) const
 	{
 		debug::dump( m_impl, out );
 	}
@@ -161,7 +161,7 @@ public:
 	/* Dump a representation of the solver internals to a string.
 
 	*/
-	std::string dumps()
+	std::string dumps() const
 	{
 		return debug::dumps( m_impl );
 	}

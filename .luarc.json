@@ -8,6 +8,6 @@
     "lua_modules/share/lua/5.1/?.lua",
     "lua_modules/share/lua/5.1/?/init.lua"
   ],
-  "workspace.library": ["lua_modules/share/lua/5.1"],
+  "workspace.library": ["${3rd}/busted/library", "${3rd}/luassert/library"],
   "workspace.checkThirdParty": false
 }

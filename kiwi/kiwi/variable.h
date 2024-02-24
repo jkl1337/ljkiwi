@@ -64,7 +64,7 @@ public:
     void setValue(double value) { m_data->setValue(value); }
 
     // operator== is used for symbolics
-    bool equals(const Variable &other)
+    bool equals(const Variable &other) const
     {
         return m_data == other.m_data;
     }

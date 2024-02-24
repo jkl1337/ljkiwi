@@ -2,6 +2,9 @@
 /lua
 /lua_modules
 /.luarocks
+*.pch
+*.gch
 *.so
 *.o
 .cache/
+compile_commands.json

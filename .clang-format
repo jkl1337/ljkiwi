@@ -27,7 +27,7 @@ BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: AfterColon
 BreakInheritanceList: AfterColon
 BreakStringLiterals: false
-ColumnLimit: 90
+ColumnLimit: 98
 CompactNamespaces: false
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
 ConstructorInitializerIndentWidth: 4
@@ -65,7 +65,7 @@ PointerAlignment: Left
 ReferenceAlignment: Left              # New in v13. int &name  ==>  int& name
 ReflowComments: false
 SeparateDefinitionBlocks: Always      # New in v14.
-SortIncludes: true
+SortIncludes: false
 SortUsingDeclarations: true
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false
