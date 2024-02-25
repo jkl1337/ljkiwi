@@ -2,9 +2,14 @@
 /lua
 /lua_modules
 /.luarocks
+/config.mk
 *.pch
 *.gch
+*.lib
 *.so
 *.o
+*.obj
+*.exp
+*.dll
 .cache/
 compile_commands.json

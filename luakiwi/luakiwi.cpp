@@ -1607,6 +1607,8 @@ void compat_init(lua_State*, int) {}
 
 #if defined __GNUC__ && (!defined _WIN32 || defined __CYGWIN__)
    #define LJKIWI_EXPORT __attribute__((__visibility__("default")))
+#elif defined _WIN32
+   #define LJKIWI_EXPORT __declspec(dllexport)
 #endif
 
 extern "C" LJKIWI_EXPORT int luaopen_ljkiwi(lua_State* L) {

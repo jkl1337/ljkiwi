@@ -1,0 +1,21 @@
+T= ljkiwi
+
+OBJS= luakiwi.obj
+
+lib: $T.dll
+
+{luakiwi\}.cpp.obj:
+	$(CC) $(CFLAGS) /W4 /wd4200 /c /D_CRT_SECURE_NO_DEPRECATE /I. /I kiwi /I"$(LUA_INCDIR)" /EHs /Fo$@ $(CFLAGS) $<
+
+$T.dll: $(OBJS)
+	link $(LIBFLAG) /out:$T.dll "$(LUA_LIBDIR)\$(LUALIB)" $(OBJS)
+	IF EXIST $T.dll.manifest mt -manifest $T.dll.manifest -outputresource:$T.dll;2
+
+install: $T.dll
+	IF NOT EXIST "$(INST_LIBDIR)" mkdir "$(INST_LIBDIR)"
+	copy $T.dll "$(INST_LIBDIR)"
+    copy kiwi.lua "$(INST_LUADIR)"
+
+clean:
+	del $T.dll $(OBJS) $T.lib $T.exp
+	IF EXIST $T.dll.manifest del $T.dll.manifest

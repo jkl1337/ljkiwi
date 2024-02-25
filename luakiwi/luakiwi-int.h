@@ -92,13 +92,15 @@ struct KiwiExpression {
    KiwiTerm terms[];
 
    static constexpr std::size_t sz(int count) {
-      return sizeof(KiwiExpression) + sizeof(KiwiTerm) * (count > 0 ? count : 0);
+      return sizeof(KiwiExpression)
+          + sizeof(KiwiTerm) * static_cast<std::size_t>(count > 0 ? count : 0);
    }
 #else
    KiwiTerm terms[1];
 
    static constexpr std::size_t sz(int count) {
-      return sizeof(KiwiExpression) + sizeof(KiwiTerm) * (count > 1 ? count - 1 : 0);
+      return sizeof(KiwiExpression)
+          + sizeof(KiwiTerm) * static_cast<std::size_t>(count > 0 ? count : 0);
    }
 #endif
 
