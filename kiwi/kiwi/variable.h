@@ -13,63 +13,55 @@
 namespace kiwi
 {
 
+class VariableData : public SharedData
+{
+public:
+    VariableData(std::string name) : SharedData(),
+                                         m_name(std::move(name)),
+                                         m_value(0.0) {}
+
+    VariableData(const char *name) : SharedData(),
+                                         m_name(name),
+                                         m_value(0.0) {}
+
+    ~VariableData() = default;
+
+    const std::string &name() const { return m_name; }
+    void setName(const char *name) { m_name = name; }
+    void setName(const std::string &name) { m_name = name; }
+
+    double value() const { return m_value; }
+    void setValue(double value) { m_value = value; }
+
+private:
+    std::string m_name;
+    double m_value;
+
+    VariableData(const VariableData &other) = delete;
+    VariableData &operator=(const VariableData &other) = delete;
+};
+
 class Variable
 {
-
 public:
-    class Context
-    {
-    public:
-        Context() = default;
-        virtual ~Context() {} // LCOV_EXCL_LINE
-    };
+    explicit Variable(VariableData *p) : m_data(p) {}
+    VariableData *ptr() { return m_data; }
 
-    Variable(Context *context = 0) : m_data(new VariableData("", context)) {}
+    Variable() : m_data(new VariableData("")) {}
 
-    Variable(std::string name, Context *context = 0) : m_data(new VariableData(std::move(name), context)) {}
-
-    Variable(const char *name, Context *context = 0) : m_data(new VariableData(name, context)) {}
-
+    Variable(std::string name) : m_data(new VariableData(std::move(name))) {}
+    Variable(const char *name) : m_data(new VariableData(name)) {}
     Variable(const Variable&) = default;
-
     Variable(Variable&&) noexcept = default;
 
     ~Variable() = default;
 
-    const std::string &name() const
-    {
-        return m_data->m_name;
-    }
+    const std::string &name() const { return m_data->name(); }
+    void setName(const char *name) { m_data->setName(name); }
+    void setName(const std::string &name) { m_data->setName(name); }
 
-    void setName(const char *name)
-    {
-        m_data->m_name = name;
-    }
-
-    void setName(const std::string &name)
-    {
-        m_data->m_name = name;
-    }
-
-    Context *context() const
-    {
-        return m_data->m_context.get();
-    }
-
-    void setContext(Context *context)
-    {
-        m_data->m_context.reset(context);
-    }
-
-    double value() const
-    {
-        return m_data->m_value;
-    }
-
-    void setValue(double value)
-    {
-        m_data->m_value = value;
-    }
+    double value() const { return m_data->value(); }
+    void setValue(double value) { m_data->setValue(value); }
 
     // operator== is used for symbolics
     bool equals(const Variable &other)
@@ -82,32 +74,6 @@ public:
     Variable& operator=(Variable&&) noexcept = default;
 
 private:
-    class VariableData : public SharedData
-    {
-
-    public:
-        VariableData(std::string name, Context *context) : SharedData(),
-                                                                  m_name(std::move(name)),
-                                                                  m_context(context),
-                                                                  m_value(0.0) {}
-
-        VariableData(const char *name, Context *context) : SharedData(),
-                                                           m_name(name),
-                                                           m_context(context),
-                                                           m_value(0.0) {}
-
-        ~VariableData() = default;
-
-        std::string m_name;
-        std::unique_ptr<Context> m_context;
-        double m_value;
-
-    private:
-        VariableData(const VariableData &other);
-
-        VariableData &operator=(const VariableData &other);
-    };
-
     SharedDataPtr<VariableData> m_data;
 
     friend bool operator<(const Variable &lhs, const Variable &rhs)
