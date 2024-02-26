@@ -48,3 +48,13 @@ jobs:
         run: luacov-coveralls -e .luarocks -e spec
         env:
           COVERALLS_REPO_TOKEN: ${{ github.token }}
+
+  finish:
+    if: always()
+    needs: busted
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close coveralls build
+        uses: coverallsapp/github-action@v2
+        with:
+          parallel-finished: true
