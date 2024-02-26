@@ -127,6 +127,8 @@ describe("Var", function()
             assert.equal(v2, terms[2].var)
             assert.equal(-1.0, terms[2].coefficient)
 
+            -- TODO: terms and expressions
+
             assert.error(function()
                local _ = v - "foo"
             end)

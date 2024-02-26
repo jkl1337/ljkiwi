@@ -53,7 +53,7 @@ jobs:
           LD_PRELOAD: ${{ matrix.os == 'ubuntu-latest' && '/usr/lib/x86_64-linux-gnu/libasan.so.6:/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libubsan.so.1' || '' }}
 
       - name: Run gcov
-        if: success() && ${{ startsWith(matrix.os, 'ubuntu-') }}
+        if: success() && startsWith(matrix.os, 'ubuntu-')
         run: |
           gcov -p -b -s"$(pwd)" -r *.gcda
 

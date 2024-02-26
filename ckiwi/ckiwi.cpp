@@ -326,7 +326,7 @@ bool kiwi_solver_has_constraint(const KiwiSolver* s, KiwiConstraint* constraint)
 }
 
 const KiwiErr* kiwi_solver_add_edit_var(KiwiSolver* s, KiwiVar* var, double strength) {
-   return wrap_err(s, var, [strength](auto& s, auto&& v) {
+   return wrap_err(s, var, [strength](auto&& s, auto&& v) {
       s.addEditVariable(Variable(v), strength);
    });
 }

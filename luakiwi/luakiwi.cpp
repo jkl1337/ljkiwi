@@ -248,6 +248,7 @@ KiwiTerm* term_new(lua_State* L) {
 
 inline KiwiExpression* expr_new(lua_State* L, int nterms) {
    auto* expr = static_cast<KiwiExpression*>(lua_newuserdata(L, KiwiExpression::sz(nterms)));
+   expr->term_count = 0;
    expr->owner = nullptr;
    push_type(L, EXPR);
    lua_setmetatable(L, -2);
@@ -929,9 +930,8 @@ int lkiwi_expr_new(lua_State* L) {
 
    auto* expr = expr_new(L, nterms);
    expr->constant = constant;
-   expr->term_count = nterms;
 
-   for (int i = 0; i < nterms; i++) {
+   for (int i = 0; i < nterms; ++i, ++expr->term_count) {
       const auto* term = get_term(L, i + 2);
       expr->terms[i].var = retain_unmanaged(term->var);
       expr->terms[i].coefficient = term->coefficient;
