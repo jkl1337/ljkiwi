@@ -175,6 +175,7 @@ function kiwi.is_var(o)
 end
 
 local Term = ffi.typeof("struct KiwiTerm") --[[@as kiwi.Term]]
+local SIZEOF_TERM = assert(ffi.sizeof(Term))
 kiwi.Term = Term
 
 function kiwi.is_term(o)
@@ -201,12 +202,7 @@ end
 ---@nodiscard
 local function add_expr_term(expr, var, coeff)
    local ret = ffi_gc(ffi_new(Expression, expr.term_count + 1), ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
-   for i = 0, expr.term_count - 1 do
-      local st = expr.terms_[i] --[[@as kiwi.Term]]
-      local dt = ret.terms_[i] --[[@as kiwi.Term]]
-      dt.var = st.var
-      dt.coefficient = st.coefficient
-   end
+   ffi_copy(ret.terms_, expr.terms_, SIZEOF_TERM * expr.term_count)
    local dt = ret.terms_[expr.term_count]
    dt.var = var
    dt.coefficient = coeff or 1.0
@@ -281,8 +277,6 @@ local OP_NAMES = {
    GE = ">=",
    EQ = "==",
 }
-
-local SIZEOF_TERM = ffi.sizeof(Term) --[[@as integer]]
 
 local tmpexpr = ffi_new(Expression, 2) --[[@as kiwi.Expression]]
 local tmpexpr_r = ffi_new(Expression, 1) --[[@as kiwi.Expression]]
@@ -622,13 +616,7 @@ do
    ---@nodiscard
    local function new_expr_constant(expr, constant)
       local ret = ffi_gc(ffi_new(Expression, expr.term_count), ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
-
-      for i = 0, expr.term_count - 1 do
-         local dt = ret.terms_[i] --[[@as kiwi.Term]]
-         local st = expr.terms_[i] --[[@as kiwi.Term]]
-         dt.var = st.var
-         dt.coefficient = st.coefficient
-      end
+      ffi_copy(ret.terms_, expr.terms_, SIZEOF_TERM * expr.term_count)
       ret.constant = constant
       ret.term_count = expr.term_count
       ljkiwi.kiwi_expression_retain(ret)
