@@ -1,0 +1,5 @@
+modules = {
+   kiwi = "kiwi.lua",
+}
+reporter = "lcov"
+reportfile = "luacov.lcov"

@@ -29,6 +29,7 @@ SANITIZE_FLAGS := -fsanitize=undefined -fsanitize=address -fsanitize=alignment -
  -fsanitize=shift -fsanitize=unreachable -fsanitize=bool \
  -fsanitize=enum
 
+COVERAGE_FLAGS := -fprofile-arcs -ftest-coverage
 LTO_FLAGS := -flto=auto
 
 -include config.mk
@@ -52,10 +53,13 @@ endif
 
 CCFLAGS += -Wall -fvisibility=hidden -Wformat=2 -Wconversion -Wimplicit-fallthrough
 
+ifdef FCOV
+  CCFLAGS += $(COVERAGE_FLAGS)
+endif
 ifdef FSANITIZE
   CCFLAGS += $(SANITIZE_FLAGS)
 endif
-ifndef FNOLTO
+ifdef FLTO
   CCFLAGS += $(LTO_FLAGS)
 endif
 
@@ -80,11 +84,9 @@ ifdef LUA
   LUA_VERSION ?= $(lastword $(shell "$(LUA)" -e "print(_VERSION)"))
 endif
 
-ifndef LUA_VERSION
-  LJKIWI_CKIWI := 1
-else
-ifeq ($(LUA_VERSION),5.1)
-  LJKIWI_CKIWI := 1
+ifdef LUA_VERSION
+ifneq ($(LUA_VERSION),5.1)
+  LJKIWI_CFFI ?= 0
 endif
 endif
 
@@ -92,8 +94,10 @@ kiwi_lib_srcs := AssocVector.h constraint.h debug.h errors.h expression.h kiwi.h
   row.h shareddata.h solver.h solverimpl.h strength.h symbol.h symbolics.h term.h \
   util.h variable.h version.h
 
-objs := luakiwi.o
-ifdef LJKIWI_CKIWI
+ifneq ($(LJKIWI_LUA),0)
+  objs += luakiwi.o
+endif
+ifneq ($(LJKIWI_CFFI),0)
   objs += ckiwi.o
 endif
 

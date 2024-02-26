@@ -35,19 +35,38 @@ jobs:
       - name: Setup dependencies
         run: |
           luarocks install busted
-          luarocks install luacov-coveralls
-      - name: Build C library
+          luarocks install luacov-reporter-lcov
+      - name: Build C++ library
         run: |
-          ${{ matrix.os == 'ubuntu-latest' && 'FSANITIZE=1' || '' }} luarocks make --no-install
+          luarocks make --no-install
+        env:
+          LJKIWI_LUA: ${{ startsWith(matrix.lua_version, 'luajit-') && '0' || '1' }}
+          LJKIWI_CFFI: ${{ startsWith(matrix.lua_version, 'luajit-') && '1' || '0' }}
+          FCOV: ${{ startsWith(matrix.os, 'ubuntu-') && '1' || '' }}
+          # Can't assume so versions, have to update this manually below
+          FSANITIZE: ${{ matrix.os == 'ubuntu-latest' && '1' || '' }}
+
       - name: Run busted tests
         run: |
-          ${{ matrix.os == 'ubuntu-latest' && 'LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.6:/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libubsan.so.1' || '' }} busted -c -v
-      - name: Report test coverage
-        if: success() && !startsWith(matrix.os, 'windows-') && startsWith(matrix.lua_version, 'luajit-')
-        continue-on-error: true
-        run: luacov-coveralls -e .luarocks -e spec
+          busted -c -v
         env:
-          COVERALLS_REPO_TOKEN: ${{ github.token }}
+          LD_PRELOAD: ${{ matrix.os == 'ubuntu-latest' && '/usr/lib/x86_64-linux-gnu/libasan.so.6:/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libubsan.so.1' || '' }}
+
+      - name: Run gcov
+        if: success() && ${{ startsWith(matrix.os, 'ubuntu-') }}
+        run: |
+          gcov -p -b -s"$(pwd)" -r *.gcda
+
+      - name: generate Lua lcov test reports
+        if: success() && !startsWith(matrix.os, 'windows-') && startsWith(matrix.lua_version, 'luajit-')
+        run: luacov
+
+      - name: Report test coverage
+        if: success() && !startsWith(matrix.os, 'windows-') && (startsWith(matrix.lua_version, 'luajit-') || startsWith(matrix.os, 'ubuntu-'))
+        continue-on-error: true
+        uses: coverallsapp/github-action@v2
+        with:
+          flag-name: run ${{ join(matrix.*, ' - ') }}
 
   finish:
     if: always()

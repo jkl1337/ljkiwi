@@ -3,6 +3,11 @@
 /lua_modules
 /.luarocks
 /config.mk
+*.gcda
+*.gcno
+*.gcov
+*.lcov
+*.out
 *.pch
 *.gch
 *.lib
