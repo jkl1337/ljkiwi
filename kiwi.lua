@@ -53,7 +53,7 @@ typedef struct KiwiTerm {
 typedef struct KiwiExpression {
    double constant;
    int term_count;
-   KiwiConstraint* owner;
+   void* owner;
 
    KiwiTerm terms_[?];
 } KiwiExpression;
@@ -227,7 +227,7 @@ local function new_expr_one(constant, var, coeff)
    dt.coefficient = coeff or 1.0
    ret.constant = constant
    ret.term_count = 1
-   ljkiwi.kiwi_var_retain(var)
+   ljkiwi.kiwi_expression_retain(ret)
    return ret
 end
 
@@ -500,9 +500,11 @@ do
    end
 
    function Term_mt.__new(T, var, coefficient)
-      local t = ffi_new(T, var, coefficient or 1.0)
+      local t = ffi_gc(ffi_new(T), term_gc) --[[@as kiwi.Term]]
       ljkiwi.kiwi_var_retain(var)
-      return ffi_gc(t, term_gc)
+      t.var = var
+      t.coefficient = coefficient or 1.0
+      return t
    end
 
    function Term_mt.__mul(a, b)

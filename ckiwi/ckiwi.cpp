@@ -1,10 +1,9 @@
-#include "ljkiwi.hpp"
 #include "ckiwi.h"
 
 #include <kiwi/kiwi.h>
 
-#include <cstdlib>
 #include <climits>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -38,15 +37,18 @@ const KiwiErr* new_error(const KiwiErr* base, const std::exception& ex) {
 
 static const constexpr KiwiErr kKiwiErrUnhandledCxxException {
     KiwiErrUnknown,
-    "An unhandled C++ exception occurred."};
+    "An unhandled C++ exception occurred."
+};
 
 static const constexpr KiwiErr kKiwiErrNullObjectArg0 {
     KiwiErrNullObject,
-    "null object passed as argument #0 (self)"};
+    "null object passed as argument #0 (self)"
+};
 
 static const constexpr KiwiErr kKiwiErrNullObjectArg1 {
     KiwiErrNullObject,
-    "null object passed as argument #1"};
+    "null object passed as argument #1"
+};
 
 template<typename F>
 const KiwiErr* wrap_err(F&& f) {
@@ -55,42 +57,49 @@ const KiwiErr* wrap_err(F&& f) {
    } catch (const UnsatisfiableConstraint& ex) {
       static const constexpr KiwiErr err {
           KiwiErrUnsatisfiableConstraint,
-          "The constraint cannot be satisfied."};
+          "The constraint cannot be satisfied."
+      };
       return &err;
    } catch (const UnknownConstraint& ex) {
       static const constexpr KiwiErr err {
           KiwiErrUnknownConstraint,
-          "The constraint has not been added to the solver."};
+          "The constraint has not been added to the solver."
+      };
       return &err;
 
    } catch (const DuplicateConstraint& ex) {
       static const constexpr KiwiErr err {
           KiwiErrDuplicateConstraint,
-          "The constraint has already been added to the solver."};
+          "The constraint has already been added to the solver."
+      };
       return &err;
 
    } catch (const UnknownEditVariable& ex) {
       static const constexpr KiwiErr err {
           KiwiErrUnknownEditVariable,
-          "The edit variable has not been added to the solver."};
+          "The edit variable has not been added to the solver."
+      };
       return &err;
 
    } catch (const DuplicateEditVariable& ex) {
       static const constexpr KiwiErr err {
           KiwiErrDuplicateEditVariable,
-          "The edit variable has already been added to the solver."};
+          "The edit variable has already been added to the solver."
+      };
       return &err;
 
    } catch (const BadRequiredStrength& ex) {
       static const constexpr KiwiErr err {
           KiwiErrBadRequiredStrength,
-          "A required strength cannot be used in this context."};
+          "A required strength cannot be used in this context."
+      };
       return &err;
 
    } catch (const InternalSolverError& ex) {
       static const constexpr KiwiErr base {
           KiwiErrInternalSolverError,
-          "An internal solver error occurred."};
+          "An internal solver error occurred."
+      };
       return new_error(&base, ex);
    } catch (std::bad_alloc&) {
       static const constexpr KiwiErr err {KiwiErrAlloc, "A memory allocation failed."};
@@ -183,18 +192,19 @@ void kiwi_expression_retain(KiwiExpression* expr) {
    for (auto* t = expr->terms_; t != expr->terms_ + expr->term_count; ++t) {
       retain_unmanaged(t->var);
    }
+   expr->owner = expr;
 }
 
 void kiwi_expression_destroy(KiwiExpression* expr) {
-   if (lk_unlikely(!expr))
+   if (lk_unlikely(!expr || !expr->owner))
       return;
 
-   if (expr->owner) {
-      release_unmanaged(expr->owner);
-   } else {
+   if (expr->owner == expr) {
       for (auto* t = expr->terms_; t != expr->terms_ + expr->term_count; ++t) {
          release_unmanaged(t->var);
       }
+   } else {
+      release_unmanaged(static_cast<ConstraintData*>(expr->owner));
    }
 }
 
@@ -209,7 +219,7 @@ KiwiConstraint* kiwi_constraint_construct(
    }
 
    std::vector<Term> terms;
-   terms.reserve(static_cast<std::size_t>(
+   terms.reserve(static_cast<decltype(terms)::size_type>(
        (lhs && lhs->term_count > 0 ? lhs->term_count : 0)
        + (rhs && rhs->term_count > 0 ? rhs->term_count : 0)
    ));

@@ -56,7 +56,7 @@ typedef struct KiwiTerm {
 typedef struct KiwiExpression {
    double constant;
    int term_count;
-   KiwiConstraint* owner;
+   void* owner;
 
 #if defined(LJKIWI_LUAJIT_DEF)
    KiwiTerm terms_[?];
