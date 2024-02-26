@@ -5,7 +5,7 @@ LIBFLAG := -shared
 LIB_EXT := $(if $(filter Windows_NT,$(OS)),dll,so)
 LUA_INCDIR := /usr/include
 
-SRCDIR := .
+SRCDIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 
 ifeq ($(OS),Windows_NT)
   is_clang = $(filter %clang++,$(CXX))
@@ -13,6 +13,9 @@ ifeq ($(OS),Windows_NT)
 else
   uname_s := $(shell uname -s)
   ifeq ($(uname_s),Darwin)
+    CC := env MACOSX_DEPLOYMENT_TARGET=11.0 gcc
+    CXX := env MACOSX_DEPLOYMENT_TARGET=11.0 g++
+    LIBFLAG := -bundle -undefined dynamic_lookup
     is_clang = 1
     is_gcc =
   else
@@ -41,8 +44,6 @@ ifeq ($(origin LUAROCKS), command line)
       CXX := $(patsubst %clang,%clang++,$(CC))
     endif
   endif
-
-luarocks: ljkiwi.$(LIB_EXT)
 
 else
   CCFLAGS += -fPIC $(OPTFLAG)
@@ -87,13 +88,13 @@ ifeq ($(LUA_VERSION),5.1)
 endif
 endif
 
-KIWI_LIB := AssocVector.h constraint.h debug.h errors.h expression.h kiwi.h maptype.h \
-	row.h shareddata.h solver.h solverimpl.h strength.h symbol.h symbolics.h term.h \
-	util.h variable.h version.h
+kiwi_lib_srcs := AssocVector.h constraint.h debug.h errors.h expression.h kiwi.h maptype.h \
+  row.h shareddata.h solver.h solverimpl.h strength.h symbol.h symbolics.h term.h \
+  util.h variable.h version.h
 
-OBJS := luakiwi.o
+objs := luakiwi.o
 ifdef LJKIWI_CKIWI
-  OBJS += ckiwi.o
+  objs += ckiwi.o
 endif
 
 vpath %.cpp $(SRCDIR)/ckiwi $(SRCDIR)/luakiwi
@@ -106,17 +107,17 @@ install:
 	$(CP) -f kiwi.lua $(INST_LUADIR)/kiwi.lua
 
 mostlyclean:
-	$(RM) -f ljkiwi.$(LIB_EXT) $(OBJS)
+	$(RM) -f ljkiwi.$(LIB_EXT) $(objs)
 
 clean: mostlyclean
 	$(RM) -f $(PCH)
 
-ckiwi.o: $(PCH) ckiwi.cpp ckiwi.h $(KIWI_LIB)
-luakiwi.o: $(PCH) luakiwi-int.h luacompat.h $(KIWI_LIB)
-$(PCH): $(KIWI_LIB)
+ckiwi.o: $(PCH) ckiwi.cpp ckiwi.h $(kiwi_lib_srcs)
+luakiwi.o: $(PCH) luakiwi-int.h luacompat.h $(kiwi_lib_srcs)
+$(PCH): $(kiwi_lib_srcs)
 
-ljkiwi.$(LIB_EXT): $(OBJS)
-	$(CXX) $(CCFLAGS) $(LIBFLAG) -o $@ $(OBJS)
+ljkiwi.$(LIB_EXT): $(objs)
+	$(CXX) $(CCFLAGS) $(LIBFLAG) -o $@ $(objs)
 
 %.hpp.gch: %.hpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -x c++-header -o $@ $<
