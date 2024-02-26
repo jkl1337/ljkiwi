@@ -11,7 +11,7 @@
 
 namespace kiwi {
 class VariableData;
-class Constraint;
+class ConstraintData;
 }  // namespace kiwi
 
 typedef kiwi::VariableData KiwiVar;
@@ -25,9 +25,10 @@ typedef struct KiwiConstraint KiwiConstraint;
 
 #endif
 
-#if __GNUC__
-   #pragma GCC visibility push(default)
-   #define LJKIWI_DATA_EXPORT __attribute__((visibility("default")))
+#if defined __GNUC__ && (!defined _WIN32 || defined __CYGWIN__)
+   #define LJKIWI_EXP __attribute__((visibility("default")))
+#elif defined _WIN32
+   #define LJKIWI_EXP __declspec(dllexport)
 #endif
 
 // LuaJIT start
@@ -75,53 +76,50 @@ typedef struct KiwiErr {
 
 struct KiwiSolver;
 
-KiwiVar* kiwi_var_construct(const char* name);
-void kiwi_var_release(KiwiVar* var);
-void kiwi_var_retain(KiwiVar* var);
+LJKIWI_EXP KiwiVar* kiwi_var_construct(const char* name);
+LJKIWI_EXP void kiwi_var_release(KiwiVar* var);
+LJKIWI_EXP void kiwi_var_retain(KiwiVar* var);
 
-const char* kiwi_var_name(const KiwiVar* var);
-void kiwi_var_set_name(KiwiVar* var, const char* name);
-double kiwi_var_value(const KiwiVar* var);
-void kiwi_var_set_value(KiwiVar* var, double value);
+LJKIWI_EXP const char* kiwi_var_name(const KiwiVar* var);
+LJKIWI_EXP void kiwi_var_set_name(KiwiVar* var, const char* name);
+LJKIWI_EXP double kiwi_var_value(const KiwiVar* var);
+LJKIWI_EXP void kiwi_var_set_value(KiwiVar* var, double value);
 
-void kiwi_expression_retain(KiwiExpression* expr);
-void kiwi_expression_destroy(KiwiExpression* expr);
+LJKIWI_EXP void kiwi_expression_retain(KiwiExpression* expr);
+LJKIWI_EXP void kiwi_expression_destroy(KiwiExpression* expr);
 
-KiwiConstraint* kiwi_constraint_construct(
+LJKIWI_EXP KiwiConstraint* kiwi_constraint_construct(
     const KiwiExpression* lhs,
     const KiwiExpression* rhs,
     enum KiwiRelOp op,
     double strength
 );
-void kiwi_constraint_release(KiwiConstraint* c);
-void kiwi_constraint_retain(KiwiConstraint* c);
+LJKIWI_EXP void kiwi_constraint_release(KiwiConstraint* c);
+LJKIWI_EXP void kiwi_constraint_retain(KiwiConstraint* c);
 
-double kiwi_constraint_strength(const KiwiConstraint* c);
-enum KiwiRelOp kiwi_constraint_op(const KiwiConstraint* c);
-bool kiwi_constraint_violated(const KiwiConstraint* c);
-int kiwi_constraint_expression(KiwiConstraint* c, KiwiExpression* out, int out_size);
+LJKIWI_EXP double kiwi_constraint_strength(const KiwiConstraint* c);
+LJKIWI_EXP enum KiwiRelOp kiwi_constraint_op(const KiwiConstraint* c);
+LJKIWI_EXP bool kiwi_constraint_violated(const KiwiConstraint* c);
+LJKIWI_EXP int kiwi_constraint_expression(KiwiConstraint* c, KiwiExpression* out, int out_size);
 
-KiwiSolver* kiwi_solver_construct(unsigned error_mask);
-void kiwi_solver_destroy(KiwiSolver* s);
-unsigned kiwi_solver_get_error_mask(const KiwiSolver* s);
-void kiwi_solver_set_error_mask(KiwiSolver* s, unsigned mask);
+LJKIWI_EXP KiwiSolver* kiwi_solver_construct(unsigned error_mask);
+LJKIWI_EXP void kiwi_solver_destroy(KiwiSolver* s);
+LJKIWI_EXP unsigned kiwi_solver_get_error_mask(const KiwiSolver* s);
+LJKIWI_EXP void kiwi_solver_set_error_mask(KiwiSolver* s, unsigned mask);
 
-const KiwiErr* kiwi_solver_add_constraint(KiwiSolver* s, KiwiConstraint* constraint);
-const KiwiErr* kiwi_solver_remove_constraint(KiwiSolver* s, KiwiConstraint* constraint);
-bool kiwi_solver_has_constraint(const KiwiSolver* s, KiwiConstraint* constraint);
-const KiwiErr* kiwi_solver_add_edit_var(KiwiSolver* s, KiwiVar* var, double strength);
-const KiwiErr* kiwi_solver_remove_edit_var(KiwiSolver* s, KiwiVar* var);
-bool kiwi_solver_has_edit_var(const KiwiSolver* s, KiwiVar* var);
-const KiwiErr* kiwi_solver_suggest_value(KiwiSolver* s, KiwiVar* var, double value);
-void kiwi_solver_update_vars(KiwiSolver* sp);
-void kiwi_solver_reset(KiwiSolver* sp);
-void kiwi_solver_dump(const KiwiSolver* sp);
-char* kiwi_solver_dumps(const KiwiSolver* sp);
+LJKIWI_EXP const KiwiErr* kiwi_solver_add_constraint(KiwiSolver* s, KiwiConstraint* constraint);
+LJKIWI_EXP const KiwiErr*
+kiwi_solver_remove_constraint(KiwiSolver* s, KiwiConstraint* constraint);
+LJKIWI_EXP bool kiwi_solver_has_constraint(const KiwiSolver* s, KiwiConstraint* constraint);
+LJKIWI_EXP const KiwiErr* kiwi_solver_add_edit_var(KiwiSolver* s, KiwiVar* var, double strength);
+LJKIWI_EXP const KiwiErr* kiwi_solver_remove_edit_var(KiwiSolver* s, KiwiVar* var);
+LJKIWI_EXP bool kiwi_solver_has_edit_var(const KiwiSolver* s, KiwiVar* var);
+LJKIWI_EXP const KiwiErr* kiwi_solver_suggest_value(KiwiSolver* s, KiwiVar* var, double value);
+LJKIWI_EXP void kiwi_solver_update_vars(KiwiSolver* sp);
+LJKIWI_EXP void kiwi_solver_reset(KiwiSolver* sp);
+LJKIWI_EXP void kiwi_solver_dump(const KiwiSolver* sp);
+LJKIWI_EXP char* kiwi_solver_dumps(const KiwiSolver* sp);
 // LuaJIT end
-
-#if __GNUC__
-   #pragma GCC visibility pop
-#endif
 
 #ifdef __cplusplus
 }  // extern "C"

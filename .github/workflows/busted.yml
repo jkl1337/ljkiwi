@@ -7,11 +7,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lua_version: ["luajit-openresty", "luajit-2.1.0-beta3", "luajit-git"]
-        os: ["ubuntu-latest"]
-        include:
-          - lua_version: "5.4.4"
-            os: "windows-latest"
+        lua_version:
+          [
+            "luajit-openresty",
+            "luajit-2.1.0-beta3",
+            "luajit-git",
+            "5.4.6",
+            "5.1.5",
+            "5.3.6",
+          ]
+        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
 
     runs-on: ${{ matrix.os }}
 
@@ -19,6 +24,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
+        if: ${{ !startsWith(matrix.lua_version, 'luajit-') }}
+
       - name: Setup ‘lua’
         uses: jkl1337/gh-actions-lua@master
         with:
@@ -31,11 +38,12 @@ jobs:
           luarocks install luacov-coveralls
       - name: Build C library
         run: |
-          luarocks make --no-install
+          ${{ matrix.os == 'ubuntu-latest' && 'FSANITIZE=1' || '' }} luarocks make --no-install
       - name: Run busted tests
-        run: busted -c -v
+        run: |
+          ${{ matrix.os == 'ubuntu-latest' && 'LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libasan.so.6:/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libubsan.so.1' || '' }} busted -c -v
       - name: Report test coverage
-        if: success()
+        if: success() && !startsWith(matrix.os, 'windows-') && startsWith(matrix.lua_version, 'luajit-')
         continue-on-error: true
         run: luacov-coveralls -e .luarocks -e spec
         env:
