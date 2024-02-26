@@ -1,9 +1,7 @@
-#include "ljkiwi.hpp"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "luacompat.h"
 #include "luakiwi-int.h"
 
 namespace {
@@ -13,9 +11,7 @@ namespace {
 
 enum TypeId { NOTYPE, VAR = 1, TERM, EXPR, CONSTRAINT, SOLVER, ERROR, NUMBER };
 
-const int ERR_KIND_TAB = NUMBER + 1;
-const int VAR_SUB_FN = ERR_KIND_TAB + 1;
-const int CONTEXT_TAB_MAX = VAR_SUB_FN + 1;
+enum { ERR_KIND_TAB = NUMBER + 1, VAR_SUB_FN, MEM_ERR_MSG, CONTEXT_TAB_MAX };
 
 constexpr const char* const lkiwi_error_kinds[] = {
     "KiwiErrNone",
@@ -218,13 +214,19 @@ inline KiwiSolver* get_solver(lua_State* L, int idx) {
    return static_cast<KiwiSolver*>(check_arg(L, idx, SOLVER));
 }
 
-// note this expects the 2nd upvalue to have the variable weak table
-VariableData* var_new(lua_State* L, VariableData* var) {
-   *static_cast<VariableData**>(lua_newuserdata(L, sizeof(VariableData*))) = var;
-
+VariableData** var_new(lua_State* L) {
+   auto** varp = static_cast<VariableData**>(lua_newuserdata(L, sizeof(VariableData*)));
    push_type(L, VAR);
    lua_setmetatable(L, -2);
+   return varp;
+}
 
+// note this expects the 2nd upvalue to have the variable weak table
+VariableData* var_register(lua_State* L, VariableData* var) {
+   if (lk_unlikely(!var)) {
+      lua_rawgeti(L, lua_upvalueindex(1), MEM_ERR_MSG);
+      lua_error(L);
+   }
 #if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM == 501
    // a true compatibility shim has performance implications here
    lua_pushlightuserdata(L, var);
@@ -260,10 +262,13 @@ inline ConstraintData* constraint_new(
     double strength
 ) {
    auto** c = static_cast<ConstraintData**>(lua_newuserdata(L, sizeof(ConstraintData*)));
-   *c = kiwi_constraint_new(lhs, rhs, op, strength);
-
    push_type(L, CONSTRAINT);
    lua_setmetatable(L, -2);
+
+   if (lk_unlikely(!(*c = kiwi_constraint_new(lhs, rhs, op, strength)))) {
+      lua_rawgeti(L, lua_upvalueindex(1), MEM_ERR_MSG);
+      lua_error(L);
+   }
    return *c;
 }
 
@@ -540,11 +545,15 @@ constexpr const struct luaL_Reg kiwi_var_m[] = {
     {"eq", lkiwi_eq},
     {"le", lkiwi_le},
     {"ge", lkiwi_ge},
-    {0, 0}};
+    {0, 0}
+};
 
 int lkiwi_var_new(lua_State* L) {
    const char* name = luaL_optstring(L, 1, "");
-   var_new(L, make_unmanaged<VariableData>(name));
+
+   auto* varp = var_new(L);
+   var_register(L, *varp = make_unmanaged<VariableData>(name));
+
    return 1;
 }
 
@@ -662,8 +671,10 @@ int lkiwi_term_m_index(lua_State* L) {
 #else
       lua_rawgetp(L, lua_upvalueindex(2), term->var);
 #endif
-      if (lua_isnil(L, -1))
-         var_new(L, term->var);
+      if (lua_isnil(L, -1)) {
+         auto* varp = var_new(L);
+         var_register(L, *varp = retain_unmanaged(term->var));
+      }
       return 1;
    } else if (len == 11 && memcmp("coefficient", k, len) == 0) {
       lua_pushnumber(L, term->coefficient);
@@ -692,7 +703,8 @@ constexpr const struct luaL_Reg kiwi_term_m[] = {
     {"eq", lkiwi_eq},
     {"le", lkiwi_le},
     {"ge", lkiwi_ge},
-    {0, 0}};
+    {0, 0}
+};
 
 int lkiwi_term_new(lua_State* L) {
    auto* var = get_var(L, 1);
@@ -908,7 +920,8 @@ constexpr const struct luaL_Reg kiwi_expr_m[] = {
     {"eq", lkiwi_eq},
     {"le", lkiwi_le},
     {"ge", lkiwi_ge},
-    {0, 0}};
+    {0, 0}
+};
 
 int lkiwi_expr_new(lua_State* L) {
    int nterms = lua_gettop(L) - 1;
@@ -1060,7 +1073,8 @@ constexpr const struct luaL_Reg kiwi_constraint_m[] = {
     {"expression", lkiwi_constraint_expression},
     {"add_to", lkiwi_constraint_add_to},
     {"remove_from", lkiwi_constraint_remove_from},
-    {0, 0}};
+    {0, 0}
+};
 
 int lkiwi_constraint_new(lua_State* L) {
    const auto* lhs = get_expr_opt(L, 1);
@@ -1133,7 +1147,8 @@ constexpr const struct luaL_Reg lkiwi_constraints[] = {
     {"pair_ratio", lkiwi_constraints_pair_ratio},
     {"pair", lkiwi_constraints_pair},
     {"single", lkiwi_constraints_single},
-    {0, 0}};
+    {0, 0}
+};
 
 void lkiwi_mod_constraints_new(lua_State* L, int ctx_i) {
    luaL_newlibtable(L, lkiwi_constraints);
@@ -1192,7 +1207,8 @@ int lkiwi_error_m_tostring(lua_State* L) {
 
 constexpr const struct luaL_Reg lkiwi_error_m[] = {
     {"__tostring", lkiwi_error_m_tostring},
-    {0, 0}};
+    {0, 0}
+};
 
 int lkiwi_error_mask(lua_State* L) {
    int invert = lua_toboolean(L, 2);
@@ -1444,7 +1460,8 @@ constexpr const struct luaL_Reg kiwi_solver_m[] = {
     {"set_error_mask", lkiwi_solver_set_error_mask},
     {"__tostring", lkiwi_solver_m_tostring},
     {"__gc", lkiwi_solver_m_gc},
-    {0, 0}};
+    {0, 0}
+};
 
 int lkiwi_solver_new(lua_State* L) {
    lua_Integer error_mask;
@@ -1541,7 +1558,8 @@ constexpr const struct luaL_Reg lkiwi[] = {
     {"eq", lkiwi_eq},
     {"le", lkiwi_le},
     {"ge", lkiwi_ge},
-    {0, 0}};
+    {0, 0}
+};
 
 int no_member_mt_index(lua_State* L) {
    luaL_error(L, "attempt to access non-existent member '%s'", lua_tostring(L, 2));
@@ -1619,6 +1637,8 @@ extern "C" LJKIWI_EXPORT int luaopen_ljkiwi(lua_State* L) {
    int ctx_i = lua_gettop(L);
 
    compat_init(L, ctx_i);
+   lua_pushliteral(L, "kiwi library memory allocation error");
+   lua_rawseti(L, ctx_i, MEM_ERR_MSG);
 
    no_member_mt_new(L);
    register_type(L, "kiwi.Var", ctx_i, VAR, kiwi_var_m);

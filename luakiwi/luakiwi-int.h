@@ -141,49 +141,57 @@ template<typename F>
 inline const KiwiErr* wrap_err(F&& f) {
    static const constexpr KiwiErr kKiwiErrUnhandledCxxException {
        KiwiErrUnknown,
-       "An unhandled C++ exception occurred."};
+       "An unhandled C++ exception occurred."
+   };
 
    try {
       f();
    } catch (const UnsatisfiableConstraint&) {
       static const constexpr KiwiErr err {
           KiwiErrUnsatisfiableConstraint,
-          "The constraint cannot be satisfied."};
+          "The constraint cannot be satisfied."
+      };
       return &err;
    } catch (const UnknownConstraint&) {
       static const constexpr KiwiErr err {
           KiwiErrUnknownConstraint,
-          "The constraint has not been added to the solver."};
+          "The constraint has not been added to the solver."
+      };
       return &err;
 
    } catch (const DuplicateConstraint&) {
       static const constexpr KiwiErr err {
           KiwiErrDuplicateConstraint,
-          "The constraint has already been added to the solver."};
+          "The constraint has already been added to the solver."
+      };
       return &err;
 
    } catch (const UnknownEditVariable&) {
       static const constexpr KiwiErr err {
           KiwiErrUnknownEditVariable,
-          "The edit variable has not been added to the solver."};
+          "The edit variable has not been added to the solver."
+      };
       return &err;
 
    } catch (const DuplicateEditVariable&) {
       static const constexpr KiwiErr err {
           KiwiErrDuplicateEditVariable,
-          "The edit variable has already been added to the solver."};
+          "The edit variable has already been added to the solver."
+      };
       return &err;
 
    } catch (const BadRequiredStrength&) {
       static const constexpr KiwiErr err {
           KiwiErrBadRequiredStrength,
-          "A required strength cannot be used in this context."};
+          "A required strength cannot be used in this context."
+      };
       return &err;
 
    } catch (const InternalSolverError& ex) {
       static const constexpr KiwiErr base {
           KiwiErrInternalSolverError,
-          "An internal solver error occurred."};
+          "An internal solver error occurred."
+      };
       return new_error(&base, ex);
    } catch (std::bad_alloc&) {
       static const constexpr KiwiErr err {KiwiErrAlloc, "A memory allocation failed."};
@@ -208,9 +216,12 @@ inline const KiwiErr* wrap_err(P&& s, R&& ref, F&& f) {
 
 template<typename T, typename... Args>
 inline T* make_unmanaged(Args... args) {
-   auto* o = new T(std::forward<Args>(args)...);
-   o->m_refcount = 1;
-   return o;
+   auto* p = new (std::nothrow) T(std::forward<Args>(args)...);
+   if (lk_unlikely(!p))
+      return nullptr;
+
+   p->m_refcount = 1;
+   return p;
 }
 
 template<typename T>
@@ -238,30 +249,35 @@ inline ConstraintData* kiwi_constraint_new(
       strength = kiwi::strength::required;
    }
 
-   std::vector<Term> terms;
-   terms.reserve(static_cast<std::size_t>(
-       (lhs && lhs->term_count > 0 ? lhs->term_count : 0)
-       + (rhs && rhs->term_count > 0 ? rhs->term_count : 0)
-   ));
+   try {
+      std::vector<Term> terms;
 
-   if (lhs) {
-      for (int i = 0; i < lhs->term_count; ++i) {
-         const auto& t = lhs->terms[i];
-         terms.emplace_back(Variable(t.var), t.coefficient);
-      }
-   }
-   if (rhs) {
-      for (int i = 0; i < rhs->term_count; ++i) {
-         const auto& t = rhs->terms[i];
-         terms.emplace_back(Variable(t.var), -t.coefficient);
-      }
-   }
+      terms.reserve(static_cast<decltype(terms)::size_type>(
+          (lhs && lhs->term_count > 0 ? lhs->term_count : 0)
+          + (rhs && rhs->term_count > 0 ? rhs->term_count : 0)
+      ));
 
-   return make_unmanaged<ConstraintData>(
-       Expression(std::move(terms), (lhs ? lhs->constant : 0.0) - (rhs ? rhs->constant : 0.0)),
-       static_cast<RelationalOperator>(op),
-       strength
-   );
+      if (lhs) {
+         for (int i = 0; i < lhs->term_count; ++i) {
+            const auto& t = lhs->terms[i];
+            terms.emplace_back(Variable(t.var), t.coefficient);
+         }
+      }
+      if (rhs) {
+         for (int i = 0; i < rhs->term_count; ++i) {
+            const auto& t = rhs->terms[i];
+            terms.emplace_back(Variable(t.var), -t.coefficient);
+         }
+      }
+      return make_unmanaged<ConstraintData>(
+          Expression(std::move(terms), (lhs ? lhs->constant : 0.0) - (rhs ? rhs->constant : 0.0)),
+          static_cast<RelationalOperator>(op),
+          strength
+      );
+
+   } catch (...) {
+      return nullptr;
+   }
 }
 
 inline const KiwiErr* kiwi_solver_add_constraint(Solver& s, ConstraintData* constraint) {

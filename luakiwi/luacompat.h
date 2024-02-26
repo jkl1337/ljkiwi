@@ -17,14 +17,6 @@ extern "C" {
 
 #if !defined(LUA_VERSION_NUM) || LUA_VERSION_NUM == 501
 
-   #define LUA_OPADD 0
-   #define LUA_OPSUB 1
-   #define LUA_OPMUL 2
-   #define LUA_OPDIV 3
-   #define LUA_OPMOD 4
-   #define LUA_OPPOW 5
-   #define LUA_OPUNM 6
-
 static int lua_absindex(lua_State* L, int i) {
    if (i < 0 && i > LUA_REGISTRYINDEX)
       i += lua_gettop(L) + 1;
