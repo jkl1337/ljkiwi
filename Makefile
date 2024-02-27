@@ -7,30 +7,42 @@ LUA_INCDIR := /usr/include
 
 SRCDIR := .
 
-ifeq ($(OS),Windows_NT)
-  is_clang = $(filter %clang++,$(CXX))
-  is_gcc = $(filter %g++,$(CXX))
-else
-  uname_s := $(shell uname -s)
-  ifeq ($(uname_s),Darwin)
-    CC := env MACOSX_DEPLOYMENT_TARGET=11.0 gcc
-    CXX := env MACOSX_DEPLOYMENT_TARGET=11.0 g++
-    LIBFLAG := -bundle -undefined dynamic_lookup
-    is_clang = 1
-    is_gcc =
-  else
-    is_clang = $(filter %clang++,$(CXX))
-    is_gcc = $(filter %g++,$(CXX))
-  endif
-endif
+SANITIZE_FLAGS := -fsanitize=undefined -fsanitize=address -fsanitize=alignment \
+  -fsanitize=shift -fsanitize=unreachable -fsanitize=bool -fsanitize=enum
 
-OPTFLAG := -O2
-SANITIZE_FLAGS := -fsanitize=undefined -fsanitize=address -fsanitize=alignment -fsanitize=bounds-strict \
- -fsanitize=shift -fsanitize=unreachable -fsanitize=bool \
- -fsanitize=enum
+ifdef FDEBUG
+  OPTFLAG := -O2
+else
+  OPTFLAG := -Og -g
+endif
 
 COVERAGE_FLAGS := --coverage
 LTO_FLAGS := -flto=auto
+
+ifeq ($(OS),Windows_NT)
+  is_clang = $(filter %clang++,$(CXX))
+  is_gcc = $(filter %g++,$(CXX))
+
+  ifdef FSANITIZE
+    $(error "FSANITIZE is not supported on Windows")
+  endif
+else
+  uname_s := $(shell uname -s)
+  ifeq ($(uname_s),Darwin)
+    is_clang = 1
+    is_gcc =
+
+    CC := env MACOSX_DEPLOYMENT_TARGET=11.0 gcc
+    CXX := env MACOSX_DEPLOYMENT_TARGET=11.0 g++
+    LIBFLAG := -bundle -undefined dynamic_lookup
+
+  else
+    is_clang = $(filter %clang++,$(CXX))
+    is_gcc = $(filter %g++,$(CXX))
+
+    SANITIZE_FLAGS += -fsanitize=bounds-strict
+  endif
+endif
 
 -include config.mk
 
@@ -38,7 +50,11 @@ ifeq ($(origin LUAROCKS), command line)
   ifdef FCOV
     CCFLAGS := $(patsubst -O%,,$(CFLAGS))
   else
-    CCFLAGS := $(CFLAGS)
+    ifdef FDEBUG
+      CCFLAGS := $(patsubst -O%,,$(CFLAGS)) -Og -g
+    else
+      CCFLAGS := $(CFLAGS)
+    endif
   endif
   override CFLAGS := -std=c99 $(CCFLAGS)
 
@@ -115,7 +131,7 @@ install:
 	$(CP) -f kiwi.lua $(INST_LUADIR)/kiwi.lua
 
 mostlyclean:
-	$(RM) -f ljkiwi.$(LIB_EXT) $(objs)
+	$(RM) -f ljkiwi.$(LIB_EXT) $(objs) $(objs:.o=.gcda) $(objs:.o=.gcno)
 
 clean: mostlyclean
 	$(RM) -f $(PCH)
