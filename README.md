@@ -9,13 +9,12 @@ ljkiwi - Free LuaJIT FFI and Lua C API kiwi (Cassowary derived) constraint solve
 Kiwi is a reasonably efficient C++ implementation of the Cassowary constraint solving algorithm. It is an implementation of the algorithm as described in the paper ["The Cassowary Linear Arithmetic Constraint Solving Algorithm"](http://www.cs.washington.edu/research/constraints/cassowary/techreports/cassowaryTR.pdf) by Greg J. Badros and Alan Borning. The Kiwi implementation is not based on the original C++ implementation, but is a ground-up reimplementation with performance 10x to 500x faster in typical use.
 Cassowary constraint solving is a technique that is particularly well suited to user interface layout. It is the algorithm Apple uses for iOS and OS X Auto Layout.
 
-There are a few Lua implementations or attempts. The SILE typesetting system has a pure Lua implementation of the original Cassowary code, which appears to be correct but is quite slow. There are two extant Lua ports of Kiwi, one that is based on a C rewrite of Kiwi. However testing of these was not encouraging with either segfaults or incorrect results.
-Since the C++ Kiwi library is well tested and widely used it was simpler to provide a LuaJIT FFI wrapper. There is also a Lua C API binding with support for 5.1 through 5.4.
+There are a few Lua implementations or attempts. The SILE typesetting system has a pure Lua implementation of the original Cassowary code, which appears to be correct but is quite slow. There are two extant Lua ports of Kiwi, one that is based on a C rewrite of Kiwi. However testing of these was not encouraging and they appear mostly unmaintained.
+Since the C++ Kiwi library is well tested, it was simpler to provide a LuaJIT FFI wrapper. Now, there is also a Lua C API binding with support for 5.1 through 5.4, and since
+in most common use cases all the heavy lifting is done in the library, there is usually
+no practical perfomance difference between the two.
 This package has no dependencies other than a supported C++14 compiler to compile the included Kiwi library and a small C wrapper.
 
-The Lua API has a pure Lua expression builder. There is of course some overhead to this, however in most cases expression building is infrequent and the underlying structures can be reused.
-
-The wrapper is quite close to the Kiwi C++/Python port with a few naming changes.
 
 ## Example
 
@@ -91,4 +90,4 @@ print(right_edge:value()) -- 500
 In addition to the expression builder there is a convenience constraints submodule with: `pair_ratio`, `pair`, and `single` to allow efficient construction of the most common simple expression types for GUI layout.
 
 ## Documentation
-WIP - However the API is fully annotated and will work with lua-language-server. Documentation can also be generated with lua-language-server.
+The API is fully annotated and will work with lua-language-server. Documentation can also be generated with lua-language-server.
