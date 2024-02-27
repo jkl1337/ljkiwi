@@ -266,7 +266,8 @@ inline ConstraintData* constraint_new(
    push_type(L, CONSTRAINT);
    lua_setmetatable(L, -2);
 
-   if (lk_unlikely(!(*c = kiwi_constraint_new(lhs, rhs, op, strength)))) {
+   *c = kiwi_constraint_new(lhs, rhs, op, strength);
+   if (lk_unlikely(!*c)) {
       lua_rawgeti(L, lua_upvalueindex(1), MEM_ERR_MSG);
       lua_error(L);
    }

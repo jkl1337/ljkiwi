@@ -16,5 +16,6 @@
 *.obj
 *.exp
 *.dll
+*.rock
 .cache/
 compile_commands.json
