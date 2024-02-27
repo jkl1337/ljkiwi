@@ -5,7 +5,7 @@ LIBFLAG := -shared
 LIB_EXT := $(if $(filter Windows_NT,$(OS)),dll,so)
 LUA_INCDIR := /usr/include
 
-SRCDIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+SRCDIR := .
 
 ifeq ($(OS),Windows_NT)
   is_clang = $(filter %clang++,$(CXX))
@@ -29,13 +29,17 @@ SANITIZE_FLAGS := -fsanitize=undefined -fsanitize=address -fsanitize=alignment -
  -fsanitize=shift -fsanitize=unreachable -fsanitize=bool \
  -fsanitize=enum
 
-COVERAGE_FLAGS := -fprofile-arcs -ftest-coverage
+COVERAGE_FLAGS := --coverage
 LTO_FLAGS := -flto=auto
 
 -include config.mk
 
 ifeq ($(origin LUAROCKS), command line)
-  CCFLAGS := $(CFLAGS)
+  ifdef FCOV
+    CCFLAGS := $(patsubst -O%,,$(CFLAGS))
+  else
+    CCFLAGS := $(CFLAGS)
+  endif
   override CFLAGS := -std=c99 $(CCFLAGS)
 
   ifneq ($(filter %gcc,$(CC)),)

@@ -1,3 +1,4 @@
+---
 name: Busted
 
 on: [push, pull_request]
@@ -50,19 +51,27 @@ jobs:
         run: |
           busted -c -v
         env:
-          LD_PRELOAD: ${{ matrix.os == 'ubuntu-latest' && '/usr/lib/x86_64-linux-gnu/libasan.so.6:/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libubsan.so.1' || '' }}
+          LD_PRELOAD: |-
+            ${{ matrix.os == 'ubuntu-latest' &&
+            '/usr/lib/x86_64-linux-gnu/libasan.so.6:/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libubsan.so.1'
+            || '' }}
 
       - name: Run gcov
         if: success() && startsWith(matrix.os, 'ubuntu-')
         run: |
           gcov -p -b -s"$(pwd)" -r *.gcda
+          rm -f "kiwi#*.gcov"
 
       - name: generate Lua lcov test reports
-        if: success() && !startsWith(matrix.os, 'windows-') && startsWith(matrix.lua_version, 'luajit-')
+        if: |-
+          success() && !startsWith(matrix.os, 'windows-')
+          && startsWith(matrix.lua_version, 'luajit-')
         run: luacov
 
       - name: Report test coverage
-        if: success() && !startsWith(matrix.os, 'windows-') && (startsWith(matrix.lua_version, 'luajit-') || startsWith(matrix.os, 'ubuntu-'))
+        if: |-
+          success() && !startsWith(matrix.os, 'windows-')
+          && (startsWith(matrix.lua_version, 'luajit-') || startsWith(matrix.os, 'ubuntu-'))
         continue-on-error: true
         uses: coverallsapp/github-action@v2
         with:
