@@ -60,7 +60,7 @@ jobs:
         if: success() && startsWith(matrix.os, 'ubuntu-')
         run: |
           gcov -p -b -s"$(pwd)" -r *.gcda
-          rm -f "kiwi#*.gcov"
+          rm -f 'kiwi#'*.gcov
 
       - name: generate Lua lcov test reports
         if: |-
@@ -86,3 +86,25 @@ jobs:
         uses: coverallsapp/github-action@v2
         with:
           parallel-finished: true
+
+  publish:
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: busted
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup ‘lua’
+        uses: jkl1337/gh-actions-lua@master
+        with:
+          luaVersion: "5.4.6"
+      - name: Setup ‘luarocks’
+        uses: jkl1337/gh-actions-luarocks@master
+      - name: Build C++ library
+        run: |
+          luarocks make --no-install
+      - name: Build rock
+        run: |
+          luarocks install dkjson
+          luarocks upload --api-key ${{ secrets.LUAROCKS_API_KEY }} \
+            rockspecs/kiwi-${GITHUB_REF_NAME#v}-1.rockspec
