@@ -227,15 +227,6 @@ VariableData* var_register(lua_State* L, VariableData* var) {
       lua_rawgeti(L, lua_upvalueindex(1), MEM_ERR_MSG);
       lua_error(L);
    }
-#if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM == 501
-   // a true compatibility shim has performance implications here
-   lua_pushlightuserdata(L, var);
-   lua_pushvalue(L, -2);
-   lua_rawset(L, lua_upvalueindex(2));
-#else
-   lua_pushvalue(L, -1);
-   lua_rawsetp(L, lua_upvalueindex(2), var);
-#endif
    return var;
 }
 
@@ -667,16 +658,8 @@ int lkiwi_term_m_index(lua_State* L) {
    size_t len;
    const char* k = lua_tolstring(L, 2, &len);
    if (len == 3 && memcmp("var", k, len) == 0) {
-#if defined(LUA_VERSION_NUM) && LUA_VERSION_NUM == 501
-      lua_pushlightuserdata(L, term->var);
-      lua_rawget(L, lua_upvalueindex(2));
-#else
-      lua_rawgetp(L, lua_upvalueindex(2), term->var);
-#endif
-      if (lua_isnil(L, -1)) {
-         auto* varp = var_new(L);
-         var_register(L, *varp = retain_unmanaged(term->var));
-      }
+      auto* varp = var_new(L);
+      var_register(L, *varp = retain_unmanaged(term->var));
       return 1;
    } else if (len == 11 && memcmp("coefficient", k, len) == 0) {
       lua_pushnumber(L, term->coefficient);
@@ -699,7 +682,7 @@ constexpr const struct luaL_Reg kiwi_term_m[] = {
     {"__unm", lkiwi_term_m_unm},
     {"__tostring", lkiwi_term_m_tostring},
     {"__gc", lkiwi_term_m_gc},
-    {"__index", 0},
+    {"__index", lkiwi_term_m_index},
     {"toexpr", lkiwi_term_toexpr},
     {"value", lkiwi_term_value},
     {"eq", lkiwi_eq},
@@ -1544,7 +1527,7 @@ int lkiwi_is_error(lua_State* L) {
 }
 
 constexpr const struct luaL_Reg lkiwi[] = {
-    {"Var", 0},
+    {"Var", lkiwi_var_new},
     {"is_var", lkiwi_is_var},
     {"Term", lkiwi_term_new},
     {"is_term", lkiwi_is_term},
@@ -1652,26 +1635,6 @@ extern "C" LJKIWI_EXPORT int luaopen_ljkiwi(lua_State* L) {
    lua_createtable(L, 0, array_count(lkiwi) + 6);
    lua_pushvalue(L, ctx_i);
    setfuncs(L, lkiwi, 1);
-
-   /* var weak table */
-   /* set as upvalue for selected functions */
-   lua_createtable(L, 0, 0);
-   lua_createtable(L, 0, 1);
-   lua_pushstring(L, "v");
-   lua_setfield(L, -2, "__mode");
-   lua_setmetatable(L, -2);
-
-   lua_pushvalue(L, ctx_i);
-   lua_pushvalue(L, -2);
-   lua_pushcclosure(L, lkiwi_var_new, 2);
-   lua_setfield(L, -3, "Var");
-
-   lua_rawgeti(L, ctx_i, TERM);
-   lua_pushvalue(L, ctx_i);
-   lua_pushvalue(L, -3);
-   lua_pushcclosure(L, lkiwi_term_m_index, 2);
-   lua_setfield(L, -2, "__index");
-   lua_pop(L, 2);  // TERM mt and var weak table
 
    /* ErrKind table */
    /* TODO: implement __call metamethod for these */
