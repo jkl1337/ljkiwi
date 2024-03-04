@@ -75,8 +75,9 @@ typedef struct KiwiErr {
 } KiwiErr;
 
 struct KiwiSolver;
+LJKIWI_EXP void kiwi_solver_type_info(unsigned sz_align[2]);
 
-LJKIWI_EXP KiwiVar* kiwi_var_construct(const char* name);
+LJKIWI_EXP KiwiVar* kiwi_var_new(const char* name);
 LJKIWI_EXP void kiwi_var_release(KiwiVar* var);
 LJKIWI_EXP void kiwi_var_retain(KiwiVar* var);
 
@@ -88,7 +89,7 @@ LJKIWI_EXP void kiwi_var_set_value(KiwiVar* var, double value);
 LJKIWI_EXP void kiwi_expression_retain(KiwiExpression* expr);
 LJKIWI_EXP void kiwi_expression_destroy(KiwiExpression* expr);
 
-LJKIWI_EXP KiwiConstraint* kiwi_constraint_construct(
+LJKIWI_EXP KiwiConstraint* kiwi_constraint_new(
     const KiwiExpression* lhs,
     const KiwiExpression* rhs,
     enum KiwiRelOp op,
@@ -102,7 +103,9 @@ LJKIWI_EXP enum KiwiRelOp kiwi_constraint_op(const KiwiConstraint* c);
 LJKIWI_EXP bool kiwi_constraint_violated(const KiwiConstraint* c);
 LJKIWI_EXP int kiwi_constraint_expression(KiwiConstraint* c, KiwiExpression* out, int out_size);
 
-LJKIWI_EXP KiwiSolver* kiwi_solver_construct(unsigned error_mask);
+LJKIWI_EXP KiwiSolver* kiwi_solver_new(unsigned error_mask);
+LJKIWI_EXP void kiwi_solver_free(KiwiSolver* s);
+LJKIWI_EXP void kiwi_solver_init(KiwiSolver* s, unsigned error_mask);
 LJKIWI_EXP void kiwi_solver_destroy(KiwiSolver* s);
 LJKIWI_EXP unsigned kiwi_solver_get_error_mask(const KiwiSolver* s);
 LJKIWI_EXP void kiwi_solver_set_error_mask(KiwiSolver* s, unsigned mask);

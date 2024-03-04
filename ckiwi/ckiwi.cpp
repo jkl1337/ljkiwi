@@ -156,7 +156,7 @@ T* retain_unmanaged(T* p) {
 
 extern "C" {
 
-KiwiVar* kiwi_var_construct(const char* name) {
+KiwiVar* kiwi_var_new(const char* name) {
    return make_unmanaged<VariableData>(lk_likely(name) ? name : "");
 }
 
@@ -208,7 +208,7 @@ void kiwi_expression_destroy(KiwiExpression* expr) {
    }
 }
 
-KiwiConstraint* kiwi_constraint_construct(
+KiwiConstraint* kiwi_constraint_new(
     const KiwiExpression* lhs,
     const KiwiExpression* rhs,
     enum KiwiRelOp op,
@@ -293,13 +293,27 @@ struct KiwiSolver {
    Solver solver;
 };
 
-KiwiSolver* kiwi_solver_construct(unsigned error_mask) {
+void kiwi_solver_type_info(unsigned sz_align[2]) {
+   sz_align[0] = sizeof(KiwiSolver);
+   sz_align[1] = alignof(KiwiSolver);
+}
+
+KiwiSolver* kiwi_solver_new(unsigned error_mask) {
    return new KiwiSolver {error_mask};
+}
+
+void kiwi_solver_free(KiwiSolver* s) {
+   if (lk_likely(s))
+      delete s;
+}
+
+void kiwi_solver_init(KiwiSolver* s, unsigned error_mask) {
+   new (s) KiwiSolver {error_mask};
 }
 
 void kiwi_solver_destroy(KiwiSolver* s) {
    if (lk_likely(s))
-      delete s;
+      s->~KiwiSolver();
 }
 
 unsigned kiwi_solver_get_error_mask(const KiwiSolver* s) {

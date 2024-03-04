@@ -21,12 +21,22 @@ do
 end
 kiwi.ljkiwi = ljkiwi
 
+do
+   ffi.cdef("void kiwi_solver_type_info(unsigned sz_align[2]);")
+   local ti = ffi.new("unsigned[2]")
+   ljkiwi.kiwi_solver_type_info(ti)
+   ffi.cdef(
+      "typedef struct KiwiSolver { unsigned char b_[$]; } __attribute__((aligned($))) KiwiSolver;",
+      ti[0],
+      ti[1]
+   )
+end
+
 ffi.cdef([[
 void free(void *);
 
 typedef struct KiwiVar KiwiVar;
-typedef struct KiwiConstraint KiwiConstraint;
-typedef struct KiwiSolver KiwiSolver;]])
+typedef struct KiwiConstraint KiwiConstraint;]])
 
 ffi.cdef([[
 enum KiwiErrKind {
@@ -66,7 +76,7 @@ typedef struct KiwiErr {
 
 struct KiwiSolver;
 
-KiwiVar* kiwi_var_construct(const char* name);
+KiwiVar* kiwi_var_new(const char* name);
 void kiwi_var_release(KiwiVar* var);
 void kiwi_var_retain(KiwiVar* var);
 
@@ -78,7 +88,7 @@ void kiwi_var_set_value(KiwiVar* var, double value);
 void kiwi_expression_retain(KiwiExpression* expr);
 void kiwi_expression_destroy(KiwiExpression* expr);
 
-KiwiConstraint* kiwi_constraint_construct(
+KiwiConstraint* kiwi_constraint_new(
     const KiwiExpression* lhs,
     const KiwiExpression* rhs,
     enum KiwiRelOp op,
@@ -92,7 +102,7 @@ enum KiwiRelOp kiwi_constraint_op(const KiwiConstraint* c);
 bool kiwi_constraint_violated(const KiwiConstraint* c);
 int kiwi_constraint_expression(KiwiConstraint* c, KiwiExpression* out, int out_size);
 
-KiwiSolver* kiwi_solver_construct(unsigned error_mask);
+void kiwi_solver_init(KiwiSolver* s, unsigned error_mask);
 void kiwi_solver_destroy(KiwiSolver* s);
 unsigned kiwi_solver_get_error_mask(const KiwiSolver* s);
 void kiwi_solver_set_error_mask(KiwiSolver* s, unsigned mask);
@@ -317,7 +327,7 @@ local function rel(lhs, rhs, op, strength)
    end
 
    return ffi_gc(
-      ljkiwi.kiwi_constraint_construct(el, er, op, strength or REQUIRED),
+      ljkiwi.kiwi_constraint_new(el, er, op, strength or REQUIRED),
       ljkiwi.kiwi_constraint_release
    ) --[[@as kiwi.Constraint]]
 end
@@ -405,7 +415,7 @@ do
    }
 
    function Var_mt:__new(name)
-      return ffi_gc(ljkiwi.kiwi_var_construct(name), ljkiwi.kiwi_var_release)
+      return ffi_gc(ljkiwi.kiwi_var_new(name), ljkiwi.kiwi_var_release)
    end
 
    function Var_mt.__mul(a, b)
@@ -785,7 +795,7 @@ do
 
    function Constraint_mt:__new(lhs, rhs, op, strength)
       return ffi_gc(
-         ljkiwi.kiwi_constraint_construct(lhs, rhs, op or "EQ", strength or REQUIRED),
+         ljkiwi.kiwi_constraint_new(lhs, rhs, op or "EQ", strength or REQUIRED),
          ljkiwi.kiwi_constraint_release
       )
    end
@@ -834,7 +844,7 @@ do
       tmpexpr.term_count = 2
 
       return ffi_gc(
-         ljkiwi.kiwi_constraint_construct(tmpexpr, nil, op or "EQ", strength or REQUIRED),
+         ljkiwi.kiwi_constraint_new(tmpexpr, nil, op or "EQ", strength or REQUIRED),
          ljkiwi.kiwi_constraint_release
       ) --[[@as kiwi.Constraint]]
    end
@@ -871,7 +881,7 @@ do
       t.coefficient = 1.0
 
       return ffi_gc(
-         ljkiwi.kiwi_constraint_construct(tmpexpr, nil, op or "EQ", strength or REQUIRED),
+         ljkiwi.kiwi_constraint_new(tmpexpr, nil, op or "EQ", strength or REQUIRED),
          ljkiwi.kiwi_constraint_release
       ) --[[@as kiwi.Constraint]]
    end
@@ -1153,8 +1163,9 @@ do
       if type(error_mask) == "table" then
          error_mask = kiwi.error_mask(error_mask)
       end
-
-      return ffi_gc(ljkiwi.kiwi_solver_construct(error_mask or 0), ljkiwi.kiwi_solver_destroy) --[[@as kiwi.Constraint]]
+      local s = ffi_new(self)
+      ljkiwi.kiwi_solver_init(s, error_mask or 0)
+      return ffi_gc(s, ljkiwi.kiwi_solver_destroy)
    end
 
    local Solver = ffi.metatype(ffi.typeof("struct KiwiSolver"), Solver_mt) --[[@as kiwi.Solver]]
