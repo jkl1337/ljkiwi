@@ -57,7 +57,7 @@ describe("solver", function()
             assert.True(kiwi.is_error(err))
             assert.True(kiwi.is_solver(err.solver))
             assert.equal(v1, err.item)
-            assert.equal("KiwiErrDuplicateEditVariable", err.kind)
+            assert.equal("KiwiErrDuplicateEditVar", err.kind)
             assert.equal("The edit variable has already been added to the solver.", err.message)
          end)
 
@@ -73,7 +73,7 @@ describe("solver", function()
          end)
 
          it("should return errors for duplicate variables", function()
-            solver:set_error_mask({ "KiwiErrDuplicateEditVariable", "KiwiErrBadRequiredStrength" })
+            solver:set_error_mask({ "KiwiErrDuplicateEditVar", "KiwiErrBadRequiredStrength" })
             local ret, err = solver:add_edit_var(v1, kiwi.strength.STRONG)
             assert.Nil(err)
 
@@ -84,13 +84,13 @@ describe("solver", function()
             ---@diagnostic disable: need-check-nil
             assert.True(kiwi.is_solver(err.solver))
             assert.equal(v1, err.item)
-            assert.equal("KiwiErrDuplicateEditVariable", err.kind)
+            assert.equal("KiwiErrDuplicateEditVar", err.kind)
             assert.equal("The edit variable has already been added to the solver.", err.message)
             ---@diagnostic enable: need-check-nil
          end)
 
          it("should return errors for invalid strength", function()
-            solver:set_error_mask({ "KiwiErrDuplicateEditVariable", "KiwiErrBadRequiredStrength" })
+            solver:set_error_mask({ "KiwiErrDuplicateEditVar", "KiwiErrBadRequiredStrength" })
 
             ---@diagnostic disable: need-check-nil
             local ret, err = solver:add_edit_var(v2, kiwi.strength.REQUIRED)
@@ -154,7 +154,7 @@ describe("solver", function()
             assert.True(kiwi.is_error(err))
             assert.True(kiwi.is_solver(err.solver))
             assert.equal(v2, err.item)
-            assert.equal("KiwiErrDuplicateEditVariable", err.kind)
+            assert.equal("KiwiErrDuplicateEditVar", err.kind)
             assert.equal("The edit variable has already been added to the solver.", err.message)
          end)
 
@@ -170,7 +170,7 @@ describe("solver", function()
          end)
 
          it("should return errors for duplicate variables", function()
-            solver:set_error_mask({ "KiwiErrDuplicateEditVariable", "KiwiErrBadRequiredStrength" })
+            solver:set_error_mask({ "KiwiErrDuplicateEditVar", "KiwiErrBadRequiredStrength" })
             local ret, err = solver:add_edit_vars({ v1, v2, v3 }, kiwi.strength.STRONG)
             assert.Nil(err)
 
@@ -181,13 +181,13 @@ describe("solver", function()
             ---@diagnostic disable: need-check-nil
             assert.True(kiwi.is_solver(err.solver))
             assert.equal(v1, err.item)
-            assert.equal("KiwiErrDuplicateEditVariable", err.kind)
+            assert.equal("KiwiErrDuplicateEditVar", err.kind)
             assert.equal("The edit variable has already been added to the solver.", err.message)
             ---@diagnostic enable: need-check-nil
          end)
 
          it("should return errors for invalid strength", function()
-            solver:set_error_mask({ "KiwiErrDuplicateEditVariable", "KiwiErrBadRequiredStrength" })
+            solver:set_error_mask({ "KiwiErrDuplicateEditVar", "KiwiErrBadRequiredStrength" })
             arg = { v2, v3 }
             local ret, err = solver:add_edit_vars(arg, kiwi.strength.REQUIRED)
             assert.equal(arg, ret)
@@ -239,12 +239,12 @@ describe("solver", function()
             assert.True(kiwi.is_error(err))
             assert.True(kiwi.is_solver(err.solver))
             assert.equal(v2, err.item)
-            assert.equal("KiwiErrUnknownEditVariable", err.kind)
+            assert.equal("KiwiErrUnknownEditVar", err.kind)
             assert.equal("The edit variable has not been added to the solver.", err.message)
          end)
 
          it("should return errors if requested", function()
-            solver:set_error_mask({ "KiwiErrDuplicateEditVariable", "KiwiErrUnknownEditVariable" })
+            solver:set_error_mask({ "KiwiErrDuplicateEditVar", "KiwiErrUnknownEditVar" })
 
             local ret, err = solver:remove_edit_var(v1)
 
@@ -253,7 +253,7 @@ describe("solver", function()
             ---@diagnostic disable: need-check-nil
             assert.True(kiwi.is_solver(err.solver))
             assert.equal(v1, err.item)
-            assert.equal("KiwiErrUnknownEditVariable", err.kind)
+            assert.equal("KiwiErrUnknownEditVar", err.kind)
             assert.equal("The edit variable has not been added to the solver.", err.message)
             ---@diagnostic enable: need-check-nil
          end)
@@ -304,12 +304,12 @@ describe("solver", function()
             assert.True(kiwi.is_error(err))
             assert.True(kiwi.is_solver(err.solver))
             assert.equal(v2, err.item)
-            assert.equal("KiwiErrUnknownEditVariable", err.kind)
+            assert.equal("KiwiErrUnknownEditVar", err.kind)
             assert.equal("The edit variable has not been added to the solver.", err.message)
          end)
 
          it("should return errors for unknown variables", function()
-            solver:set_error_mask({ "KiwiErrDuplicateEditVariable", "KiwiErrUnknownEditVariable" })
+            solver:set_error_mask({ "KiwiErrDuplicateEditVar", "KiwiErrUnknownEditVar" })
             local ret, err = solver:add_edit_vars({ v1, v2 }, kiwi.strength.STRONG)
             assert.Nil(err)
 
@@ -320,7 +320,7 @@ describe("solver", function()
             ---@diagnostic disable: need-check-nil
             assert.True(kiwi.is_solver(err.solver))
             assert.equal(v3, err.item)
-            assert.equal("KiwiErrUnknownEditVariable", err.kind)
+            assert.equal("KiwiErrUnknownEditVar", err.kind)
             assert.equal("The edit variable has not been added to the solver.", err.message)
             ---@diagnostic enable: need-check-nil
          end)

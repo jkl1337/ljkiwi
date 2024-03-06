@@ -42,12 +42,12 @@ static const constexpr KiwiErr kKiwiErrUnhandledCxxException {
 
 static const constexpr KiwiErr kKiwiErrNullObjectArg0 {
     KiwiErrNullObject,
-    "null object passed as argument #0 (self)"
+    "null object passed as argument #0 (self)."
 };
 
 static const constexpr KiwiErr kKiwiErrNullObjectArg1 {
     KiwiErrNullObject,
-    "null object passed as argument #1"
+    "null object passed as argument #1."
 };
 
 template<typename F>
@@ -76,14 +76,14 @@ const KiwiErr* wrap_err(F&& f) {
 
    } catch (const UnknownEditVariable& ex) {
       static const constexpr KiwiErr err {
-          KiwiErrUnknownEditVariable,
+          KiwiErrUnknownEditVar,
           "The edit variable has not been added to the solver."
       };
       return &err;
 
    } catch (const DuplicateEditVariable& ex) {
       static const constexpr KiwiErr err {
-          KiwiErrDuplicateEditVariable,
+          KiwiErrDuplicateEditVar,
           "The edit variable has already been added to the solver."
       };
       return &err;
@@ -161,9 +161,9 @@ void kiwi_str_release(char* str) {
       std::free(str);
 }
 
-void kiwi_err_release(const KiwiErr* err) {
+void kiwi_err_release(KiwiErr* err) {
    if (lk_likely(err && err->must_release))
-      std::free(const_cast<KiwiErr*>(err));
+      std::free(err);
 }
 
 KiwiVar* kiwi_var_new(const char* name) {

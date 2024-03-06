@@ -37,8 +37,8 @@ enum KiwiErrKind {
    KiwiErrUnsatisfiableConstraint = 1,
    KiwiErrUnknownConstraint,
    KiwiErrDuplicateConstraint,
-   KiwiErrUnknownEditVariable,
-   KiwiErrDuplicateEditVariable,
+   KiwiErrUnknownEditVar,
+   KiwiErrDuplicateEditVar,
    KiwiErrBadRequiredStrength,
    KiwiErrInternalSolverError,
    KiwiErrAlloc,
@@ -78,7 +78,7 @@ struct KiwiSolver;
 LJKIWI_EXP void kiwi_solver_type_info(unsigned sz_align[2]);
 
 LJKIWI_EXP void kiwi_str_release(char* str);
-LJKIWI_EXP void kiwi_err_release(const KiwiErr* err);
+LJKIWI_EXP void kiwi_err_release(KiwiErr* err);
 
 LJKIWI_EXP KiwiVar* kiwi_var_new(const char* name);
 LJKIWI_EXP void kiwi_var_release(KiwiVar* var);

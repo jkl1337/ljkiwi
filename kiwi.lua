@@ -77,8 +77,8 @@ enum KiwiErrKind {
    KiwiErrUnsatisfiableConstraint = 1,
    KiwiErrUnknownConstraint,
    KiwiErrDuplicateConstraint,
-   KiwiErrUnknownEditVariable,
-   KiwiErrDuplicateEditVariable,
+   KiwiErrUnknownEditVar,
+   KiwiErrDuplicateEditVar,
    KiwiErrBadRequiredStrength,
    KiwiErrInternalSolverError,
    KiwiErrAlloc,
@@ -110,7 +110,7 @@ typedef struct KiwiErr {
 struct KiwiSolver;
 
 void kiwi_str_release(char *);
-void kiwi_err_release(const KiwiErr *);
+void kiwi_err_release(KiwiErr *);
 
 KiwiVar* kiwi_var_new(const char* name);
 void kiwi_var_release(KiwiVar* var);
@@ -173,8 +173,8 @@ end
 ---| '"KiwiErrUnsatisfiableConstraint"' # The given constraint is required and cannot be satisfied.
 ---| '"KiwiErrUnknownConstraint"' # The given constraint has not been added to the solver.
 ---| '"KiwiErrDuplicateConstraint"' # The given constraint has already been added to the solver.
----| '"KiwiErrUnknownEditVariable"' # The given edit variable has not been added to the solver.
----| '"KiwiErrDuplicateEditVariable"' # The given edit variable has already been added to the solver.
+---| '"KiwiErrUnknownEditVar"' # The given edit variable has not been added to the solver.
+---| '"KiwiErrDuplicateEditVar"' # The given edit variable has already been added to the solver.
 ---| '"KiwiErrBadRequiredStrength"' # The given strength is >= required.
 ---| '"KiwiErrInternalSolverError"' # An internal solver error occurred.
 ---| '"KiwiErrAlloc"' # A memory allocation error occurred.
@@ -1139,7 +1139,7 @@ do
    --- This method should be called before the `suggestValue` method is
    --- used to supply a suggested value for the given edit variable.
    --- Errors:
-   --- KiwiErrDuplicateEditVariable
+   --- KiwiErrDuplicateEditVar
    --- KiwiErrBadRequiredStrength: The given strength is >= required.
    ---@param var kiwi.Var the variable to add as an edit variable
    ---@param strength number the strength of the edit variable (must be less than `Strength.REQUIRED`)
@@ -1153,7 +1153,7 @@ do
    --- This method should be called before the `suggestValue` method is
    --- used to supply a suggested value for the given edit variable.
    --- Errors:
-   --- KiwiErrDuplicateEditVariable
+   --- KiwiErrDuplicateEditVar
    --- KiwiErrBadRequiredStrength: The given strength is >= required.
    ---@param vars kiwi.Var[] the variables to add as an edit variable
    ---@param strength number the strength of the edit variables (must be less than `Strength.REQUIRED`)
@@ -1164,7 +1164,7 @@ do
 
    --- Remove an edit variable from the solver.
    --- Raises:
-   --- KiwiErrUnknownEditVariable
+   --- KiwiErrUnknownEditVar
    ---@param var kiwi.Var the edit variable to remove
    ---@return kiwi.Var var, kiwi.Error?
    function Solver_cls:remove_edit_var(var)
@@ -1173,7 +1173,7 @@ do
 
    --- Removes edit variables from the solver.
    --- Raises:
-   --- KiwiErrUnknownEditVariable
+   --- KiwiErrUnknownEditVar
    ---@param vars kiwi.Var[] the edit variables to remove
    ---@return kiwi.Var[] vars, kiwi.Error?
    function Solver_cls:remove_edit_vars(vars)
@@ -1185,7 +1185,7 @@ do
    --- to suggest the value for that variable. After all suggestions have been made,
    --- the `update_vars` methods can be used to update the values of the external solver variables.
    --- Raises:
-   --- KiwiErrUnknownEditVariable
+   --- KiwiErrUnknownEditVar
    ---@param var kiwi.Var the edit variable to suggest a value for
    ---@param value number the suggested value
    ---@return kiwi.Var var, kiwi.Error?
@@ -1196,7 +1196,7 @@ do
    --- Suggest values for the given edit variables.
    --- Convenience wrapper of `suggest_value` that takes tables of `kiwi.Var` and number pairs.
    --- Raises:
-   --- KiwiErrUnknownEditVariable: The given edit variable has not been added to the solver.
+   --- KiwiErrUnknownEditVar: The given edit variable has not been added to the solver.
    ---@param vars kiwi.Var[] edit variables to suggest
    ---@param values number[] suggested values
    ---@return kiwi.Var[] vars, number[] values, kiwi.Error?
