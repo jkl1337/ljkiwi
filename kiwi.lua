@@ -12,14 +12,22 @@ end
 local kiwi = {}
 
 local ljkiwi
-do
+local RUST = false
+
+if not _G["KIWI_CKIWI"] then
+   local libpath = package.searchpath("rjkiwi", package.cpath)
+   if libpath then
+      RUST, ljkiwi = pcall(ffi.load, libpath)
+   end
+end
+
+if not ljkiwi then
    local cpath, err = package.searchpath("ljkiwi", package.cpath)
    if cpath == nil then
       error("kiwi dynamic library 'ljkiwi' not found\n" .. err)
    end
    ljkiwi = ffi.load(cpath)
 end
-kiwi.ljkiwi = ljkiwi
 
 do
    ffi.cdef("void kiwi_solver_type_info(unsigned sz_align[2]);")
@@ -32,13 +40,38 @@ do
    )
 end
 
-ffi.cdef([[
-void free(void *);
+if RUST then
+   ffi.cdef("void kiwi_constraint_type_info(unsigned sz_align[2]);")
+   local ti = ffi.new("unsigned[2]")
+   ljkiwi.kiwi_constraint_type_info(ti)
+   ffi.cdef(
+      "typedef struct KiwiConstraint { unsigned char b_[$]; } __attribute__((aligned($))) KiwiConstraint;",
+      ti[0],
+      ti[1]
+   )
+   ffi.cdef([[
+typedef struct KiwiExpression KiwiExpression;
 
+void kiwi_constraint_init(
+    KiwiConstraint* c,
+    const KiwiExpression* lhs,
+    const KiwiExpression* rhs,
+    enum KiwiRelOp op,
+    double strength
+);
+void kiwi_constraint_destroy(KiwiConstraint* c);
+
+struct KiwiVar {
+   double value_;
+   const char* name_;
+};
+]])
+end
+
+ffi.cdef([[
+typedef struct KiwiConstraint KiwiConstraint;
 typedef struct KiwiVar KiwiVar;
-typedef struct KiwiConstraint KiwiConstraint;]])
 
-ffi.cdef([[
 enum KiwiErrKind {
    KiwiErrNone,
    KiwiErrUnsatisfiableConstraint = 1,
@@ -71,10 +104,13 @@ typedef struct KiwiExpression {
 typedef struct KiwiErr {
    enum KiwiErrKind kind;
    const char* message;
-   bool must_free;
+   bool must_release;
 } KiwiErr;
 
 struct KiwiSolver;
+
+void kiwi_str_release(char *);
+void kiwi_err_release(const KiwiErr *);
 
 KiwiVar* kiwi_var_new(const char* name);
 void kiwi_var_release(KiwiVar* var);
@@ -159,6 +195,8 @@ kiwi.strength = {
    WEAK = 1.0,
 }
 
+local REQUIRED = kiwi.strength.REQUIRED
+
 do
    local function clamp(n)
       return math.max(0, math.min(1000, n))
@@ -204,6 +242,23 @@ kiwi.Constraint = Constraint
 
 function kiwi.is_constraint(o)
    return ffi_istype(Constraint, o)
+end
+
+local new_constraint
+if RUST then
+   ---@return kiwi.Constraint
+   function new_constraint(lhs, rhs, op, strength)
+      local c = ffi_new(Constraint)
+      ljkiwi.kiwi_constraint_init(c, lhs, rhs, op or "EQ", strength or REQUIRED)
+      return ffi_gc(c, ljkiwi.kiwi_constraint_destroy) --[[@as kiwi.Constraint]]
+   end
+else
+   function new_constraint(lhs, rhs, op, strength)
+      return ffi_gc(
+         ljkiwi.kiwi_constraint_new(lhs, rhs, op or "EQ", strength or REQUIRED),
+         ljkiwi.kiwi_constraint_release
+      ) --[[@as kiwi.Constraint]]
+   end
 end
 
 ---@param expr kiwi.Expression
@@ -279,9 +334,6 @@ local function op_error(a, b, op)
          op, typename(a), tostring(a), typename(b), tostring(b)), 3)
 end
 
-local Strength = kiwi.strength
-local REQUIRED = Strength.REQUIRED
-
 local OP_NAMES = {
    LE = "<=",
    GE = ">=",
@@ -325,11 +377,7 @@ local function rel(lhs, rhs, op, strength)
    if el == nil or er == nil then
       op_error(lhs, rhs, OP_NAMES[op])
    end
-
-   return ffi_gc(
-      ljkiwi.kiwi_constraint_new(el, er, op, strength or REQUIRED),
-      ljkiwi.kiwi_constraint_release
-   ) --[[@as kiwi.Constraint]]
+   return new_constraint(el, er, op, strength)
 end
 
 --- Define a constraint with expressions as `a <= b`.
@@ -362,6 +410,8 @@ end
 do
    --- Variables are the values the constraint solver calculates.
    ---@class kiwi.Var: ffi.cdata*
+   ---@field package name_ ffi.cdata*
+   ---@field package value_ number
    ---@overload fun(name: string?): kiwi.Var
    ---@operator mul(number): kiwi.Term
    ---@operator div(number): kiwi.Term
@@ -377,20 +427,50 @@ do
       ---@type fun(self: kiwi.Var, name: string)
       set_name = ljkiwi.kiwi_var_set_name,
 
-      --- Get the current value of the variable.
-      ---@type fun(self: kiwi.Var): number
-      value = ljkiwi.kiwi_var_value,
-
       --- Set the value of the variable.
       ---@type fun(self: kiwi.Var, value: number)
       set = ljkiwi.kiwi_var_set_value,
    }
 
-   --- Get the name of the variable.
-   ---@return string
-   ---@nodiscard
-   function Var_cls:name()
-      return ffi_string(ljkiwi.kiwi_var_name(self))
+   local Var_mt = {
+      __index = Var_cls,
+   }
+
+   if RUST then
+      function Var_mt:__new(name)
+         --return ffi_gc(ljkiwi.kiwi_var_new(name)[0], ljkiwi.kiwi_var_release)
+         return ljkiwi.kiwi_var_new(name)[0]
+      end
+
+      --- Get the name of the variable.
+      ---@return string
+      ---@nodiscard
+      function Var_cls:name()
+         return ffi_string(self.name_)
+      end
+
+      --- Get the current value of the variable.
+      ---@return number
+      ---@nodiscard
+      function Var_cls:value()
+         return self.value_
+      end
+
+      --- Set the value of the variable.
+      ---@param value number
+      function Var_cls:set(value)
+         self.value_ = value
+      end
+   else
+      function Var_mt:__new(name)
+         return ffi_gc(ljkiwi.kiwi_var_new(name), ljkiwi.kiwi_var_release)
+      end
+
+      function Var_cls:name()
+         return ffi_string(ljkiwi.kiwi_var_name(self))
+      end
+      Var_cls.value = ljkiwi.kiwi_var_value
+      Var_cls.set = ljkiwi.kiwi_var_set_value
    end
 
    --- Create a term from this variable.
@@ -408,14 +488,6 @@ do
    ---@nodiscard
    function Var_cls:toexpr(coefficient, constant)
       return new_expr_one(constant or 0.0, self, coefficient)
-   end
-
-   local Var_mt = {
-      __index = Var_cls,
-   }
-
-   function Var_mt:__new(name)
-      return ffi_gc(ljkiwi.kiwi_var_new(name), ljkiwi.kiwi_var_release)
    end
 
    function Var_mt.__mul(a, b)
@@ -794,18 +866,17 @@ do
    }
 
    function Constraint_mt:__new(lhs, rhs, op, strength)
-      return ffi_gc(
-         ljkiwi.kiwi_constraint_new(lhs, rhs, op or "EQ", strength or REQUIRED),
-         ljkiwi.kiwi_constraint_release
-      )
+      return new_constraint(lhs, rhs, op, strength)
    end
 
    local OPS = { [0] = "<=", ">=", "==" }
+
+   local strength = kiwi.strength
    local STRENGTH_NAMES = {
-      [Strength.REQUIRED] = "required",
-      [Strength.STRONG] = "strong",
-      [Strength.MEDIUM] = "medium",
-      [Strength.WEAK] = "weak",
+      [strength.REQUIRED] = "required",
+      [strength.STRONG] = "strong",
+      [strength.MEDIUM] = "medium",
+      [strength.WEAK] = "weak",
    }
 
    function Constraint_mt:__tostring()
@@ -843,10 +914,7 @@ do
       tmpexpr.constant = constant ~= nil and constant or 0
       tmpexpr.term_count = 2
 
-      return ffi_gc(
-         ljkiwi.kiwi_constraint_new(tmpexpr, nil, op or "EQ", strength or REQUIRED),
-         ljkiwi.kiwi_constraint_release
-      ) --[[@as kiwi.Constraint]]
+      return new_constraint(tmpexpr, nil, op, strength)
    end
 
    local pair_ratio = constraints.pair_ratio
@@ -880,10 +948,7 @@ do
       t.var = var
       t.coefficient = 1.0
 
-      return ffi_gc(
-         ljkiwi.kiwi_constraint_new(tmpexpr, nil, op or "EQ", strength or REQUIRED),
-         ljkiwi.kiwi_constraint_release
-      ) --[[@as kiwi.Constraint]]
+      return new_constraint(tmpexpr, nil, op, strength)
    end
 end
 
@@ -918,7 +983,7 @@ do
    ---@class kiwi.KiwiErr: ffi.cdata*
    ---@field package kind kiwi.ErrKind
    ---@field package message ffi.cdata*
-   ---@field package must_free boolean
+   ---@field package must_release boolean
    ---@overload fun(): kiwi.KiwiErr
    local KiwiErr = ffi.typeof("struct KiwiErr") --[[@as kiwi.KiwiErr]]
 
@@ -963,11 +1028,11 @@ do
    local function try_solver(f, solver, item, ...)
       local err = f(solver, item, ...)
       if err ~= nil then
+         if err.must_release then
+            ffi_gc(err, ljkiwi.kiwi_error_release)
+         end
          local kind = err.kind
          local message = err.message ~= nil and ffi_string(err.message) or ""
-         if err.must_free then
-            C.free(err)
-         end
          local errdata = new_error(kind, message, solver, item)
          local error_mask = ljkiwi.kiwi_solver_get_error_mask(solver)
          return item,
@@ -1149,10 +1214,8 @@ do
    ---@return string
    ---@nodiscard
    function Solver_cls:dumps()
-      local cs = ljkiwi.kiwi_solver_dumps(self)
-      local s = ffi_string(cs)
-      C.free(cs)
-      return s
+      local cs = ffi_gc(ljkiwi.kiwi_solver_dumps(self), ljkiwi.kiwi_str_release)
+      return ffi_string(cs)
    end
 
    local Solver_mt = {

@@ -156,6 +156,16 @@ T* retain_unmanaged(T* p) {
 
 extern "C" {
 
+void kiwi_str_release(char* str) {
+   if (lk_likely(str))
+      std::free(str);
+}
+
+void kiwi_err_release(const KiwiErr* err) {
+   if (lk_likely(err && err->must_release))
+      std::free(const_cast<KiwiErr*>(err));
+}
+
 KiwiVar* kiwi_var_new(const char* name) {
    return make_unmanaged<VariableData>(lk_likely(name) ? name : "");
 }
