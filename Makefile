@@ -83,13 +83,8 @@ ifdef FLTO
   CCFLAGS += $(LTO_FLAGS)
 endif
 
-ifneq ($(is_gcc),)
-  #PCH := ljkiwi.hpp.gch
-else
-  ifneq ($(is_clang),)
-    override CXXFLAGS += -pedantic -Wno-c99-extensions
-    #PCH := ljkiwi.hpp.pch
-  endif
+ifneq ($(is_clang),)
+  override CXXFLAGS += -pedantic -Wno-c99-extensions
 endif
 
 override CPPFLAGS += -I$(SRCDIR) -I$(SRCDIR)/kiwi -I"$(LUA_INCDIR)"
@@ -136,9 +131,8 @@ mostlyclean:
 clean: mostlyclean
 	$(RM) -f $(PCH)
 
-ckiwi.o: $(PCH) ckiwi.cpp ckiwi.h $(kiwi_lib_srcs)
-luakiwi.o: $(PCH) luakiwi-int.h luacompat.h $(kiwi_lib_srcs)
-$(PCH): $(kiwi_lib_srcs)
+ckiwi.o: ckiwi.cpp ckiwi.h $(kiwi_lib_srcs)
+luakiwi.o: luakiwi-int.h luacompat.h $(kiwi_lib_srcs)
 
 ljkiwi.$(LIB_EXT): $(objs)
 	$(CXX) $(CCFLAGS) $(LIBFLAG) -o $@ $(objs)

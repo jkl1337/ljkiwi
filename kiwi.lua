@@ -18,6 +18,9 @@ if not _G["KIWI_CKIWI"] then
    local libpath = package.searchpath("rjkiwi", package.cpath)
    if libpath then
       RUST, ljkiwi = pcall(ffi.load, libpath)
+      if not RUST then
+         ljkiwi = nil
+      end
    end
 end
 
