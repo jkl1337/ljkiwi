@@ -84,18 +84,12 @@ describe("Constraint", function()
          local v2 = kiwi.Var("bar")
          local rhs = kiwi.Expression(3, 5 * v2, 3 * v)
          local c = kiwi.Constraint(lhs, rhs)
+         assert.True(c:violated())
+         v:set(9)
+         v2:set(-4)
+         assert.False(c:violated())
 
-         local e = c:expression()
-         local t = e:terms()
-         assert.equal(2, #t)
-         if t[1].var ~= v then
-            t[1], t[2] = t[2], t[1]
-         end
-         assert.equal(v, t[1].var)
-         assert.equal(-2.0, t[1].coefficient)
-         assert.equal(v2, t[2].var)
-         assert.equal(-5.0, t[2].coefficient)
-         assert.equal(-2.0, e.constant)
+         assert.equal(-2.0, c:expression().constant)
       end)
    end)
 

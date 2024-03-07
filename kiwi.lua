@@ -445,7 +445,7 @@ do
       ---@return string
       ---@nodiscard
       function Var_cls:name()
-         return ffi_string(self.name_)
+         return self.name_ ~= nil and ffi_string(self.name_) or ""
       end
 
       --- Get the current value of the variable.
