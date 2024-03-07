@@ -55,44 +55,26 @@ const KiwiErr* wrap_err(F&& f) {
    try {
       f();
    } catch (const UnsatisfiableConstraint& ex) {
-      static const constexpr KiwiErr err {
-          KiwiErrUnsatisfiableConstraint,
-          "The constraint cannot be satisfied."
-      };
+      static const constexpr KiwiErr err {KiwiErrUnsatisfiableConstraint};
       return &err;
    } catch (const UnknownConstraint& ex) {
-      static const constexpr KiwiErr err {
-          KiwiErrUnknownConstraint,
-          "The constraint has not been added to the solver."
-      };
+      static const constexpr KiwiErr err {KiwiErrUnknownConstraint};
       return &err;
 
    } catch (const DuplicateConstraint& ex) {
-      static const constexpr KiwiErr err {
-          KiwiErrDuplicateConstraint,
-          "The constraint has already been added to the solver."
-      };
+      static const constexpr KiwiErr err {KiwiErrDuplicateConstraint};
       return &err;
 
    } catch (const UnknownEditVariable& ex) {
-      static const constexpr KiwiErr err {
-          KiwiErrUnknownEditVar,
-          "The edit variable has not been added to the solver."
-      };
+      static const constexpr KiwiErr err {KiwiErrUnknownEditVar};
       return &err;
 
    } catch (const DuplicateEditVariable& ex) {
-      static const constexpr KiwiErr err {
-          KiwiErrDuplicateEditVar,
-          "The edit variable has already been added to the solver."
-      };
+      static const constexpr KiwiErr err {KiwiErrDuplicateEditVar};
       return &err;
 
    } catch (const BadRequiredStrength& ex) {
-      static const constexpr KiwiErr err {
-          KiwiErrBadRequiredStrength,
-          "A required strength cannot be used in this context."
-      };
+      static const constexpr KiwiErr err {KiwiErrBadRequiredStrength};
       return &err;
 
    } catch (const InternalSolverError& ex) {
@@ -161,9 +143,9 @@ void kiwi_str_release(char* str) {
       std::free(str);
 }
 
-void kiwi_err_release(KiwiErr* err) {
+void kiwi_err_release(const KiwiErr* err) {
    if (lk_likely(err && err->must_release))
-      std::free(err);
+      std::free(const_cast<KiwiErr*>(err));
 }
 
 KiwiVar* kiwi_var_new(const char* name) {

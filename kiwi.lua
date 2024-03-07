@@ -110,7 +110,7 @@ typedef struct KiwiErr {
 struct KiwiSolver;
 
 void kiwi_str_release(char *);
-void kiwi_err_release(KiwiErr *);
+void kiwi_err_release(const KiwiErr *);
 
 KiwiVar* kiwi_var_new(const char* name);
 void kiwi_var_release(KiwiVar* var);
@@ -438,8 +438,7 @@ do
 
    if RUST then
       function Var_mt:__new(name)
-         --return ffi_gc(ljkiwi.kiwi_var_new(name)[0], ljkiwi.kiwi_var_release)
-         return ljkiwi.kiwi_var_new(name)[0]
+         return ffi_gc(ljkiwi.kiwi_var_new(name)[0], ljkiwi.kiwi_var_release)
       end
 
       --- Get the name of the variable.
@@ -1020,6 +1019,18 @@ do
       }, Error_mt)
    end
 
+   local ERR_MESSAGES = {
+      "The constraint cannot be satisfied.",
+      "The constraint has not been added to the solver.",
+      "The constraint has already been added to the solver.",
+      "The edit variable has not been added to the solver.",
+      "The edit variable has already been added to the solver.",
+      "A required strength cannot be used in this context.",
+      "An internal solver error occurred.",
+      "A memory allocation failed.",
+      "null object passed as argument.",
+      "An unknown error occurred.",
+   }
    ---@generic T
    ---@param f fun(solver: kiwi.Solver, item: T, ...): kiwi.KiwiErr?
    ---@param solver kiwi.Solver
@@ -1029,10 +1040,12 @@ do
       local err = f(solver, item, ...)
       if err ~= nil then
          if err.must_release then
-            ffi_gc(err, ljkiwi.kiwi_error_release)
+            ffi_gc(err, ljkiwi.kiwi_err_release)
          end
          local kind = err.kind
-         local message = err.message ~= nil and ffi_string(err.message) or ""
+         local message = err.message ~= nil and ffi_string(err.message)
+            or ERR_MESSAGES[tonumber(err.kind)]
+            or ""
          local errdata = new_error(kind, message, solver, item)
          local error_mask = ljkiwi.kiwi_solver_get_error_mask(solver)
          return item,
