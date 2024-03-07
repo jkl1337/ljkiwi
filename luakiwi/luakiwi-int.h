@@ -69,8 +69,8 @@ enum KiwiErrKind {
    KiwiErrUnsatisfiableConstraint = 1,
    KiwiErrUnknownConstraint,
    KiwiErrDuplicateConstraint,
-   KiwiErrUnknownEditVariable,
-   KiwiErrDuplicateEditVariable,
+   KiwiErrUnknownEditVar,
+   KiwiErrDuplicateEditVar,
    KiwiErrBadRequiredStrength,
    KiwiErrInternalSolverError,
    KiwiErrAlloc,
@@ -168,14 +168,14 @@ inline const KiwiErr* wrap_err(F&& f) {
 
    } catch (const UnknownEditVariable&) {
       static const constexpr KiwiErr err {
-          KiwiErrUnknownEditVariable,
+          KiwiErrUnknownEditVar,
           "The edit variable has not been added to the solver."
       };
       return &err;
 
    } catch (const DuplicateEditVariable&) {
       static const constexpr KiwiErr err {
-          KiwiErrDuplicateEditVariable,
+          KiwiErrDuplicateEditVar,
           "The edit variable has already been added to the solver."
       };
       return &err;
