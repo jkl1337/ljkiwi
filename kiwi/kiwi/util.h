@@ -13,10 +13,11 @@ namespace kiwi
 namespace impl
 {
 
+constexpr const double EPSILON = 1.0e-8;
+
 inline bool nearZero(double value)
 {
-    const double eps = 1.0e-8;
-    return value < 0.0 ? -value < eps : value < eps;
+    return value < 0.0 ? -value < EPSILON : value < EPSILON;
 }
 
 } // namespace impl

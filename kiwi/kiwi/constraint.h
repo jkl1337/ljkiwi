@@ -63,8 +63,8 @@ public:
         switch (m_op)
         {
             case OP_EQ: return !impl::nearZero(m_expression.value());
-            case OP_GE: return m_expression.value() < 0.0;
-            case OP_LE: return m_expression.value() > 0.0;
+            case OP_GE: return m_expression.value() < impl::EPSILON;
+            case OP_LE: return m_expression.value() > impl::EPSILON;
         }
         std::abort();
     }
