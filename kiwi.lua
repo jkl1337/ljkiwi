@@ -43,51 +43,8 @@ do
    )
 end
 
-if RUST then
-   ffi.cdef("void kiwi_constraint_type_info(unsigned sz_align[2]);")
-   local ti = ffi.new("unsigned[2]")
-   ljkiwi.kiwi_constraint_type_info(ti)
-   ffi.cdef(
-      "typedef struct KiwiConstraint { unsigned char b_[$]; } __attribute__((aligned($))) KiwiConstraint;",
-      ti[0],
-      ti[1]
-   )
-   ffi.cdef([[
-typedef struct KiwiExpression KiwiExpression;
-
-void kiwi_constraint_init(
-    KiwiConstraint* c,
-    const KiwiExpression* lhs,
-    const KiwiExpression* rhs,
-    enum KiwiRelOp op,
-    double strength
-);
-void kiwi_constraint_destroy(KiwiConstraint* c);
-
-struct KiwiVar {
-   double value_;
-   const char* name_;
-};
-]])
-end
-
 ffi.cdef([[
-typedef struct KiwiConstraint KiwiConstraint;
 typedef struct KiwiVar KiwiVar;
-
-enum KiwiErrKind {
-   KiwiErrNone,
-   KiwiErrUnsatisfiableConstraint = 1,
-   KiwiErrUnknownConstraint,
-   KiwiErrDuplicateConstraint,
-   KiwiErrUnknownEditVar,
-   KiwiErrDuplicateEditVar,
-   KiwiErrBadRequiredStrength,
-   KiwiErrInternalSolverError,
-   KiwiErrAlloc,
-   KiwiErrNullObject,
-   KiwiErrUnknown,
-};
 
 enum KiwiRelOp { LE, GE, EQ };
 
@@ -103,6 +60,71 @@ typedef struct KiwiExpression {
 
    KiwiTerm terms_[?];
 } KiwiExpression;
+
+void kiwi_expression_retain(KiwiExpression* expr);
+void kiwi_expression_destroy(KiwiExpression* expr);
+
+]])
+
+if RUST then
+   ffi.cdef([[
+typedef struct KiwiConstraint {
+   double constant;
+   int term_count;
+   enum KiwiRelOp op_;
+   double strength_;
+
+   void* owner;
+
+   KiwiTerm terms_[?];
+} KiwiConstraint;
+
+void kiwi_constraint_init(
+    KiwiConstraint* c,
+    const KiwiExpression* lhs,
+    const KiwiExpression* rhs,
+    enum KiwiRelOp op,
+    double strength
+);
+void kiwi_constraint_destroy(KiwiConstraint* c);
+
+struct KiwiVar {
+   double value_;
+   const char* name_;
+};
+]])
+else
+   ffi.cdef([[
+typedef struct KiwiConstraint KiwiConstraint;
+
+KiwiConstraint* kiwi_constraint_new(
+    const KiwiExpression* lhs,
+    const KiwiExpression* rhs,
+    enum KiwiRelOp op,
+    double strength
+);
+void kiwi_constraint_release(KiwiConstraint* c);
+void kiwi_constraint_retain(KiwiConstraint* c);
+
+double kiwi_constraint_strength(const KiwiConstraint* c);
+enum KiwiRelOp kiwi_constraint_op(const KiwiConstraint* c);
+]])
+end
+
+ffi.cdef([[
+enum KiwiErrKind {
+   KiwiErrNone,
+   KiwiErrUnsatisfiableConstraint = 1,
+   KiwiErrUnknownConstraint,
+   KiwiErrDuplicateConstraint,
+   KiwiErrUnknownEditVar,
+   KiwiErrDuplicateEditVar,
+   KiwiErrBadRequiredStrength,
+   KiwiErrInternalSolverError,
+   KiwiErrAlloc,
+   KiwiErrNullObject,
+   KiwiErrUnknown,
+};
 
 typedef struct KiwiErr {
    enum KiwiErrKind kind;
@@ -124,20 +146,6 @@ void kiwi_var_set_name(KiwiVar* var, const char* name);
 double kiwi_var_value(const KiwiVar* var);
 void kiwi_var_set_value(KiwiVar* var, double value);
 
-void kiwi_expression_retain(KiwiExpression* expr);
-void kiwi_expression_destroy(KiwiExpression* expr);
-
-KiwiConstraint* kiwi_constraint_new(
-    const KiwiExpression* lhs,
-    const KiwiExpression* rhs,
-    enum KiwiRelOp op,
-    double strength
-);
-void kiwi_constraint_release(KiwiConstraint* c);
-void kiwi_constraint_retain(KiwiConstraint* c);
-
-double kiwi_constraint_strength(const KiwiConstraint* c);
-enum KiwiRelOp kiwi_constraint_op(const KiwiConstraint* c);
 bool kiwi_constraint_violated(const KiwiConstraint* c);
 int kiwi_constraint_expression(KiwiConstraint* c, KiwiExpression* out, int out_size);
 
@@ -251,7 +259,7 @@ local new_constraint
 if RUST then
    ---@return kiwi.Constraint
    function new_constraint(lhs, rhs, op, strength)
-      local c = ffi_new(Constraint)
+      local c = ffi_new(Constraint, (lhs and lhs.term_count or 0) + (rhs and rhs.term_count or 0))
       ljkiwi.kiwi_constraint_init(c, lhs, rhs, op or "EQ", strength or REQUIRED)
       return ffi_gc(c, ljkiwi.kiwi_constraint_destroy) --[[@as kiwi.Constraint]]
    end
@@ -813,20 +821,37 @@ do
    --- Constraints can be built with arbitrary left and right hand expressions. But
    --- ultimately they all have the form `expression [op] 0`.
    ---@class kiwi.Constraint: ffi.cdata*
+   ---@field package constant number
+   ---@field package term_count number
+   ---@field package owner ffi.cdata*
+   ---@field package op_ kiwi.RelOp
+   ---@field package strength_ number
+   ---@field package terms_ ffi.cdata*
    ---@overload fun(lhs: kiwi.Expression?, rhs: kiwi.Expression?, op: kiwi.RelOp?, strength: number?): kiwi.Constraint
    local Constraint_cls = {
-      --- The strength of the constraint.
-      ---@type fun(self: kiwi.Constraint): number
-      strength = ljkiwi.kiwi_constraint_strength,
-
-      --- The relational operator of the constraint.
-      ---@type fun(self: kiwi.Constraint): kiwi.RelOp
-      op = ljkiwi.kiwi_constraint_op,
-
       --- Whether the constraint is violated in the current solution.
       ---@type fun(self: kiwi.Constraint): boolean
       violated = ljkiwi.kiwi_constraint_violated,
    }
+
+   if RUST then
+      --- The strength of the constraint.
+      ---@return number
+      ---@nodiscard
+      function Constraint_cls:strength()
+         return self.strength_
+      end
+
+      --- The relational operator of the constraint.
+      ---@return kiwi.RelOp
+      ---@nodiscard
+      function Constraint_cls:op()
+         return self.op_
+      end
+   else
+      Constraint_cls.strength = ljkiwi.kiwi_constraint_strength
+      Constraint_cls.op = ljkiwi.kiwi_constraint_op
+   end
 
    --- The reduced expression defining the constraint.
    ---@return kiwi.Expression

@@ -19,6 +19,8 @@ endif
 COVERAGE_FLAGS := --coverage
 LTO_FLAGS := -flto=auto
 
+rust_dylib_name := librjkiwi.so
+
 ifeq ($(OS),Windows_NT)
   is_clang = $(filter %clang++,$(CXX))
   is_gcc = $(filter %g++,$(CXX))
@@ -26,6 +28,8 @@ ifeq ($(OS),Windows_NT)
   ifdef FSANITIZE
     $(error "FSANITIZE is not supported on Windows")
   endif
+
+  rust_dylib_name := rjkiwi.dll
 else
   uname_s := $(shell uname -s)
   ifeq ($(uname_s),Darwin)
@@ -35,6 +39,7 @@ else
     CC := env MACOSX_DEPLOYMENT_TARGET=11.0 gcc
     CXX := env MACOSX_DEPLOYMENT_TARGET=11.0 g++
     LIBFLAG := -bundle -undefined dynamic_lookup
+    rust_dylib_name := librjkiwi.dylib
 
   else
     is_clang = $(filter %clang++,$(CXX))
@@ -105,6 +110,8 @@ ifneq ($(LUA_VERSION),5.1)
 endif
 endif
 
+rust_lib_srcs := expr.rs lib.rs solver.rs util.rs var.rs Cargo.toml Cargo.lock
+
 kiwi_lib_srcs := AssocVector.h constraint.h debug.h errors.h expression.h kiwi.h maptype.h \
   row.h shareddata.h solver.h solverimpl.h strength.h symbol.h symbolics.h term.h \
   util.h variable.h version.h
@@ -118,18 +125,17 @@ endif
 
 vpath %.cpp $(SRCDIR)/ckiwi $(SRCDIR)/luakiwi
 vpath %.h $(SRCDIR)/ckiwi $(SRCDIR)/luakiwi $(SRCDIR)/kiwi/kiwi
+vpath %.rs $(SRCDIR)/rjkiwi/src
+vpath Cargo.% $(SRCDIR)/rjkiwi
 
-all: ljkiwi.$(LIB_EXT)
+all: ljkiwi.$(LIB_EXT) $(if $(FRUST),rjkiwi.$(LIB_EXT))
 
 install:
-	$(CP) -f ljkiwi.$(LIB_EXT) $(INST_LIBDIR)/ljkiwi.$(LIB_EXT)
+	$(CP) -f ljkiwi.$(LIB_EXT) rjkiwi.$(LIB_EXT) $(INST_LIBDIR)/
 	$(CP) -f kiwi.lua $(INST_LUADIR)/kiwi.lua
 
-mostlyclean:
-	$(RM) -f ljkiwi.$(LIB_EXT) $(objs) $(objs:.o=.gcda) $(objs:.o=.gcno)
-
-clean: mostlyclean
-	$(RM) -f $(PCH)
+clean:
+	$(RM) -f ljkiwi.$(LIB_EXT) rjkiwi.$(LIB_EXT) $(objs) $(objs:.o=.gcda) $(objs:.o=.gcno)
 
 ckiwi.o: ckiwi.cpp ckiwi.h $(kiwi_lib_srcs)
 luakiwi.o: luakiwi-int.h luacompat.h $(kiwi_lib_srcs)
@@ -145,5 +151,14 @@ ljkiwi.$(LIB_EXT): $(objs)
 
 %.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+
+rjkiwi.$(LIB_EXT): rjkiwi/target/$(if $(FDEBUG),debug,release)/$(rust_dylib_name)
+	$(CP) -f $< $@
+
+rjkiwi/target/debug/$(rust_dylib_name): $(rust_lib_srcs)
+	cd rjkiwi && cargo build
+
+rjkiwi/target/release/$(rust_dylib_name): $(rust_lib_srcs)
+	cd rjkiwi && cargo build --release
 
 .PHONY: all install clean mostlyclean

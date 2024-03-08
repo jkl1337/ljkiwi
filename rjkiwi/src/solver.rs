@@ -8,7 +8,11 @@ use casuarius::{
     Solver, SuggestValueError,
 };
 
-use crate::{constraint::KiwiConstraint, util::*, var::{KiwiVar, SolverVariable}};
+use crate::{
+    expr::{try_to_constraint, KiwiConstraintPtr},
+    util::*,
+    var::{KiwiVar, SolverVariable},
+};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -130,14 +134,15 @@ static BAD_REQUIRED_STRENGTH_ERROR: KiwiErr =
 #[no_mangle]
 pub unsafe extern "C" fn kiwi_solver_add_constraint(
     s: *mut KiwiSolver,
-    constraint: *const KiwiConstraint,
+    constraint: *const KiwiConstraintPtr,
 ) -> *const KiwiErr {
     use AddConstraintError::*;
 
-    let (Some(s), Some(constraint)) = (not_null_ref_mut(s), not_null_ref(constraint)) else {
+    let (Some(s), Some(constraint)) = (not_null_ref_mut(s), try_to_constraint(constraint)) else {
         return &NULL_OBJECT_ERR;
     };
-    match s.solver.add_constraint(constraint.clone()) {
+
+    match s.solver.add_constraint(constraint) {
         Ok(_) => ptr::null(),
         Err(err) => match err {
             DuplicateConstraint => &DUPLICATE_CONSTRAINT_ERROR,
@@ -152,14 +157,14 @@ pub unsafe extern "C" fn kiwi_solver_add_constraint(
 #[no_mangle]
 pub unsafe extern "C" fn kiwi_solver_remove_constraint(
     s: *mut KiwiSolver,
-    constraint: *const KiwiConstraint,
+    constraint: *const KiwiConstraintPtr,
 ) -> *const KiwiErr {
     use RemoveConstraintError::*;
 
-    let (Some(s), Some(constraint)) = (not_null_ref_mut(s), not_null_ref(constraint)) else {
+    let (Some(s), Some(constraint)) = (not_null_ref_mut(s), try_to_constraint(constraint)) else {
         return &NULL_OBJECT_ERR;
     };
-    match s.solver.remove_constraint(constraint) {
+    match s.solver.remove_constraint(&constraint) {
         Ok(_) => ptr::null(),
         Err(err) => match err {
             UnknownConstraint => &UNKNOWN_CONSTRAINT_ERROR,
@@ -249,9 +254,9 @@ pub unsafe extern "C" fn kiwi_solver_has_edit_var(
 #[no_mangle]
 pub unsafe extern "C" fn kiwi_solver_has_constraint(
     s: *const KiwiSolver,
-    constraint: *const KiwiConstraint,
+    constraint: *const KiwiConstraintPtr,
 ) -> bool {
-    match (not_null_ref(s), not_null_ref(constraint)) {
+    match (not_null_ref(s), try_to_constraint(constraint)) {
         (Some(s), Some(constraint)) => s.solver.has_constraint(&constraint),
         _ => false,
     }

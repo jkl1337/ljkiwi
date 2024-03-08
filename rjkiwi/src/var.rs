@@ -48,19 +48,15 @@ impl SolverVariable {
     }
 
     #[inline]
-    pub(crate) fn retain_raw(&self) -> *const KiwiVar {
-        Rc::into_raw(self.0.clone())
-    }
-
-    #[inline]
-    pub(crate) unsafe fn get_value(&self) -> f64 {
-        (*self.0.get()).value_
-    }
-
-    #[inline]
     pub(crate) unsafe fn set_value(&self, value: &f64) {
         (*self.0.get()).value_ = *value;
     }
+}
+
+pub(crate) unsafe fn var_retain_raw(var: *const KiwiVar) -> *const KiwiVar {
+    let var = not_null(var).unwrap();
+    Rc::increment_strong_count(var);
+    var
 }
 
 impl Eq for SolverVariable {}

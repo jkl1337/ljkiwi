@@ -2,11 +2,10 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-mod constraint;
-mod expr;
-mod solver;
+pub mod expr;
+pub mod solver;
 mod util;
-mod var;
+pub mod var;
 
 mod mem {
     use std::ffi::{c_char, CString};
