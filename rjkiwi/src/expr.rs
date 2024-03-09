@@ -49,6 +49,61 @@ impl KiwiExpression {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn kiwi_expression_add_term(
+    e: *const KiwiExpressionPtr,
+    v: *const KiwiVar,
+    coefficient: c_double,
+    out: *mut KiwiExpressionPtr,
+) {
+    let Some(e) = KiwiExpression::try_from_raw(e) else {
+        return;
+    };
+
+    let n_terms = (e.terms_.len() + 1).min(c_int::MAX as usize);
+
+    let out = core::slice::from_raw_parts_mut(out as *mut (), n_terms) as *mut [()]
+        as *mut KiwiExpression;
+
+    (*out).owner = out as *mut c_void;
+    (*out).term_count = n_terms as c_int;
+    (*out).constant = e.constant;
+
+    for (o, i) in (*out).terms_.iter_mut().zip(e.terms_.iter()) {
+        o.var = KiwiVar::retain_raw(i.var);
+        o.coefficient = i.coefficient;
+    }
+    (*out).terms_[n_terms - 1] = KiwiTerm {
+        var: KiwiVar::retain_raw(v),
+        coefficient,
+    };
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn kiwi_expression_set_constant(
+    e: *const KiwiExpressionPtr,
+    constant: c_double,
+    out: *mut KiwiExpressionPtr,
+) {
+    let Some(e) = KiwiExpression::try_from_raw(e) else {
+        return;
+    };
+
+    let n_terms = e.terms_.len();
+
+    let out = core::slice::from_raw_parts_mut(out as *mut (), n_terms) as *mut [()]
+        as *mut KiwiExpression;
+
+    (*out).owner = out as *mut c_void;
+    (*out).term_count = n_terms as c_int;
+    (*out).constant = constant;
+
+    for (o, i) in (*out).terms_.iter_mut().zip(e.terms_.iter()) {
+        o.var = KiwiVar::retain_raw(i.var);
+        o.coefficient = i.coefficient;
+    }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn kiwi_expression_retain(e: *mut KiwiExpressionPtr) {
     let Some(e) = not_null_mut(e) else {
         return;
