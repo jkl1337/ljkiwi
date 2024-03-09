@@ -40,7 +40,7 @@ impl KiwiExpression {
     }
 
     unsafe fn try_from_raw<'a>(e: *const KiwiExpressionPtr) -> Option<&'a Self> {
-        if e.is_null() {
+        if e.is_null() || (*e).term_count < 0 {
             None
         } else {
             Some(Self::from_raw(e))
@@ -56,10 +56,15 @@ pub unsafe extern "C" fn kiwi_expression_add_term(
     out: *mut KiwiExpressionPtr,
 ) {
     let Some(e) = KiwiExpression::try_from_raw(e) else {
+        (*out).term_count = 0;
         return;
     };
+    if e.terms_.len() >= c_int::MAX as usize {
+        (*out).term_count = 0;
+        return;
+    }
 
-    let n_terms = (e.terms_.len() + 1).min(c_int::MAX as usize);
+    let n_terms = e.terms_.len() + 1;
 
     let out = core::slice::from_raw_parts_mut(out as *mut (), n_terms) as *mut [()]
         as *mut KiwiExpression;
@@ -85,6 +90,7 @@ pub unsafe extern "C" fn kiwi_expression_set_constant(
     out: *mut KiwiExpressionPtr,
 ) {
     let Some(e) = KiwiExpression::try_from_raw(e) else {
+        (*out).term_count = 0;
         return;
     };
 

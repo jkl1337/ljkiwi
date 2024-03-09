@@ -63,7 +63,8 @@ typedef struct KiwiExpression {
 
 void kiwi_expression_retain(KiwiExpression* expr);
 void kiwi_expression_destroy(KiwiExpression* expr);
-
+void kiwi_expression_add_term(const KiwiExpression* expr, KiwiVar* var, double coeff, KiwiExpression* out);
+void kiwi_expression_set_constant(const KiwiExpression* expr, double constant, KiwiExpression* out);
 ]])
 
 if RUST then
@@ -95,9 +96,6 @@ struct KiwiVar {
 };
 
 void kiwi_var_free(KiwiVar* var);
-
-void kiwi_expression_add_term(const KiwiExpression* expr, KiwiVar* var, double coeff, KiwiExpression* out);
-void kiwi_expression_set_constant(const KiwiExpression* expr, double constant, KiwiExpression* out);
 ]])
 else
    ffi.cdef([[
@@ -298,29 +296,14 @@ else
    end
 end
 
-local add_expr_term
-if RUST then
-   ---@param expr kiwi.Expression
-   ---@param var kiwi.Var
-   ---@param coeff number?
-   ---@nodiscard
-   function add_expr_term(expr, var, coeff)
-      local ret = ffi_new(Expression, expr.term_count + 1)
-      ljkiwi.kiwi_expression_add_term(expr, var, coeff or 1.0, ret)
-      return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
-   end
-else
-   function add_expr_term(expr, var, coeff)
-      local ret = ffi_new(Expression, expr.term_count + 1) --[[@as kiwi.Expression]]
-      ffi_copy(ret.terms_, expr.terms_, SIZEOF_TERM * expr.term_count)
-      local dt = ret.terms_[expr.term_count]
-      dt.var = var
-      dt.coefficient = coeff or 1.0
-      ret.constant = expr.constant
-      ret.term_count = expr.term_count + 1
-      ljkiwi.kiwi_expression_retain(ret)
-      return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
-   end
+---@param expr kiwi.Expression
+---@param var kiwi.Var
+---@param coeff number?
+---@nodiscard
+local function add_expr_term(expr, var, coeff)
+   local ret = ffi_new(Expression, expr.term_count + 1)
+   ljkiwi.kiwi_expression_add_term(expr, var, coeff or 1.0, ret)
+   return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
 end
 
 ---@param constant number
@@ -738,25 +721,13 @@ do
       return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
    end
 
-   local new_expr_constant
-   if RUST then
-      ---@param expr kiwi.Expression
-      ---@param constant number
-      ---@nodiscard
-      function new_expr_constant(expr, constant)
-         local ret = ffi_new(Expression, expr.term_count)
-         ljkiwi.kiwi_expression_set_constant(expr, constant, ret)
-         return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
-      end
-   else
-      function new_expr_constant(expr, constant)
-         local ret = ffi_new(Expression, expr.term_count) --[[@as kiwi.Expression]]
-         ffi_copy(ret.terms_, expr.terms_, SIZEOF_TERM * expr.term_count)
-         ret.constant = constant
-         ret.term_count = expr.term_count
-         ljkiwi.kiwi_expression_retain(ret)
-         return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
-      end
+   ---@param expr kiwi.Expression
+   ---@param constant number
+   ---@nodiscard
+   local function new_expr_constant(expr, constant)
+      local ret = ffi_new(Expression, expr.term_count)
+      ljkiwi.kiwi_expression_set_constant(expr, constant, ret)
+      return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
    end
 
    ---@return number

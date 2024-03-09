@@ -91,6 +91,14 @@ LJKIWI_EXP void kiwi_var_set_value(KiwiVar* var, double value);
 
 LJKIWI_EXP void kiwi_expression_retain(KiwiExpression* expr);
 LJKIWI_EXP void kiwi_expression_destroy(KiwiExpression* expr);
+LJKIWI_EXP void kiwi_expression_add_term(
+    const KiwiExpression* expr,
+    KiwiVar* var,
+    double coefficient,
+    KiwiExpression* out
+);
+LJKIWI_EXP void
+kiwi_expression_set_constant(const KiwiExpression* expr, double constant, KiwiExpression* out);
 
 LJKIWI_EXP KiwiConstraint* kiwi_constraint_new(
     const KiwiExpression* lhs,

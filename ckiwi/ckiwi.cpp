@@ -2,6 +2,7 @@
 
 #include <kiwi/kiwi.h>
 
+#include <algorithm>
 #include <climits>
 #include <cstdlib>
 #include <cstring>
@@ -181,7 +182,7 @@ void kiwi_var_set_value(KiwiVar* var, double value) {
 void kiwi_expression_retain(KiwiExpression* expr) {
    if (lk_unlikely(!expr))
       return;
-   for (auto* t = expr->terms_; t != expr->terms_ + expr->term_count; ++t) {
+   for (auto* t = expr->terms_; t != expr->terms_ + std::max(expr->term_count, 0); ++t) {
       retain_unmanaged(t->var);
    }
    expr->owner = expr;
@@ -192,11 +193,56 @@ void kiwi_expression_destroy(KiwiExpression* expr) {
       return;
 
    if (expr->owner == expr) {
-      for (auto* t = expr->terms_; t != expr->terms_ + expr->term_count; ++t) {
+      for (auto* t = expr->terms_; t != expr->terms_ + std::max(expr->term_count, 0); ++t) {
          release_unmanaged(t->var);
       }
    } else {
       release_unmanaged(static_cast<ConstraintData*>(expr->owner));
+   }
+}
+
+void kiwi_expression_add_term(
+    const KiwiExpression* expr,
+    KiwiVar* var,
+    double coefficient,
+    KiwiExpression* out
+) {
+   if (lk_unlikely(!expr || expr->term_count == INT_MAX || expr->term_count < 0)) {
+      out->term_count = 0;
+      return;
+   }
+
+   out->owner = out;
+   out->term_count = expr->term_count + 1;
+   out->constant = expr->constant;
+
+   auto* d = out->terms_;
+   for (auto* s = expr->terms_; s != expr->terms_ + expr->term_count; ++s, ++d) {
+      d->var = retain_unmanaged(s->var);
+      d->coefficient = s->coefficient;
+   }
+   d->var = retain_unmanaged(var);
+   d->coefficient = coefficient;
+}
+
+void kiwi_expression_set_constant(
+    const KiwiExpression* expr,
+    double constant,
+    KiwiExpression* out
+) {
+   if (lk_unlikely(!expr || expr->term_count < 0)) {
+      out->term_count = 0;
+      return;
+   }
+
+   out->owner = out;
+   out->term_count = expr->term_count;
+   out->constant = constant;
+
+   auto* d = out->terms_;
+   for (auto* s = expr->terms_; s != expr->terms_ + expr->term_count; ++s, ++d) {
+      d->var = retain_unmanaged(s->var);
+      d->coefficient = s->coefficient;
    }
 }
 
