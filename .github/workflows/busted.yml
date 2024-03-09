@@ -18,12 +18,20 @@ jobs:
             "5.3.6",
           ]
         os: ["ubuntu-latest", "windows-latest", "macos-latest"]
+        rust: [""]
+        include:
+          - lua_version: "luajit-git"
+            os: "ubuntu-latest"
+            rust: rust
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.rust
+
       - uses: ilammy/msvc-dev-cmd@v1
         if: ${{ !startsWith(matrix.lua_version, 'luajit-') }}
 
@@ -45,32 +53,33 @@ jobs:
           LJKIWI_CFFI: ${{ startsWith(matrix.lua_version, 'luajit-') && '1' || '0' }}
           FCOV: ${{ startsWith(matrix.os, 'ubuntu-') && '1' || '' }}
           # Can't assume so versions, have to update this manually below
-          FSANITIZE: ${{ matrix.os == 'ubuntu-latest' && '1' || '' }}
+          FSANITIZE: ${{ matrix.os == 'ubuntu-latest' && !matrix.rust && '1' || '' }}
+          FRUST: ${{ matrix.rust && '1' || '' }}
 
       - name: Run busted tests
         run: |
           busted -c -v
         env:
           LD_PRELOAD: |-
-            ${{ matrix.os == 'ubuntu-latest' &&
+            ${{ matrix.os == 'ubuntu-latest' && !matrix.rust &&
             '/usr/lib/x86_64-linux-gnu/libasan.so.6:/usr/lib/x86_64-linux-gnu/libstdc++.so.6:/usr/lib/x86_64-linux-gnu/libubsan.so.1'
             || '' }}
 
       - name: Run gcov
-        if: success() && startsWith(matrix.os, 'ubuntu-')
+        if: success() && !matrix.rust && startsWith(matrix.os, 'ubuntu-')
         run: |
           gcov -p -b -s"$(pwd)" -r *.gcda
           rm -f 'kiwi#'*.gcov
 
       - name: generate Lua lcov test reports
         if: |-
-          success() && !startsWith(matrix.os, 'windows-')
+          success() && !matrix.rust && !startsWith(matrix.os, 'windows-')
           && startsWith(matrix.lua_version, 'luajit-')
         run: luacov
 
       - name: Report test coverage
         if: |-
-          success() && !startsWith(matrix.os, 'windows-')
+          success() && !matrix.rust && !startsWith(matrix.os, 'windows-')
           && (startsWith(matrix.lua_version, 'luajit-') || startsWith(matrix.os, 'ubuntu-'))
         continue-on-error: true
         uses: coverallsapp/github-action@v2

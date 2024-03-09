@@ -285,7 +285,7 @@ struct KiwiSolver {
    Solver solver;
 };
 
-void kiwi_solver_type_info(unsigned sz_align[2]) {
+void kiwi_solver_type_layout(unsigned sz_align[2]) {
    sz_align[0] = sizeof(KiwiSolver);
    sz_align[1] = alignof(KiwiSolver);
 }

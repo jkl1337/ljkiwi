@@ -11,9 +11,9 @@ SANITIZE_FLAGS := -fsanitize=undefined -fsanitize=address -fsanitize=alignment \
   -fsanitize=shift -fsanitize=unreachable -fsanitize=bool -fsanitize=enum
 
 ifdef FDEBUG
-  OPTFLAG := -O2
-else
   OPTFLAG := -Og -g
+else
+  OPTFLAG := -O2
 endif
 
 COVERAGE_FLAGS := --coverage
@@ -143,12 +143,6 @@ luakiwi.o: luakiwi-int.h luacompat.h $(kiwi_lib_srcs)
 ljkiwi.$(LIB_EXT): $(objs)
 	$(CXX) $(CCFLAGS) $(LIBFLAG) -o $@ $(objs)
 
-%.hpp.gch: %.hpp
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -x c++-header -o $@ $<
-
-%.hpp.pch: %.hpp
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ -x c++-header $<
-
 %.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
@@ -161,4 +155,4 @@ rjkiwi/target/debug/$(rust_dylib_name): $(rust_lib_srcs)
 rjkiwi/target/release/$(rust_dylib_name): $(rust_lib_srcs)
 	cd rjkiwi && cargo build --release
 
-.PHONY: all install clean mostlyclean
+.PHONY: all install clean

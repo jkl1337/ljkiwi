@@ -1,5 +1,7 @@
+use core::ffi::{c_char, c_double, c_uint};
+
 use std::{
-    ffi::{c_char, c_double, c_uint, CString},
+    ffi::CString,
     ptr::{self, drop_in_place},
 };
 
@@ -9,7 +11,7 @@ use casuarius::{
 };
 
 use crate::{
-    expr::{try_to_constraint, KiwiConstraintPtr},
+    expr::{KiwiConstraint, KiwiConstraintPtr},
     util::*,
     var::{KiwiVar, SolverVariable},
 };
@@ -80,9 +82,9 @@ pub struct KiwiSolver {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn kiwi_solver_type_info(sz_align: *mut c_uint) {
-    *sz_align.offset(0) = std::mem::size_of::<KiwiSolver>() as c_uint;
-    *sz_align.offset(1) = std::mem::align_of::<KiwiSolver>() as c_uint;
+pub unsafe extern "C" fn kiwi_solver_type_layout(sz_align: *mut c_uint) {
+    *sz_align.offset(0) = core::mem::size_of::<KiwiSolver>() as c_uint;
+    *sz_align.offset(1) = core::mem::align_of::<KiwiSolver>() as c_uint;
 }
 
 #[no_mangle]
@@ -138,7 +140,10 @@ pub unsafe extern "C" fn kiwi_solver_add_constraint(
 ) -> *const KiwiErr {
     use AddConstraintError::*;
 
-    let (Some(s), Some(constraint)) = (not_null_ref_mut(s), try_to_constraint(constraint)) else {
+    let (Some(s), Some(constraint)) = (
+        not_null_ref_mut(s),
+        KiwiConstraint::try_construct(constraint),
+    ) else {
         return &NULL_OBJECT_ERR;
     };
 
@@ -161,7 +166,10 @@ pub unsafe extern "C" fn kiwi_solver_remove_constraint(
 ) -> *const KiwiErr {
     use RemoveConstraintError::*;
 
-    let (Some(s), Some(constraint)) = (not_null_ref_mut(s), try_to_constraint(constraint)) else {
+    let (Some(s), Some(constraint)) = (
+        not_null_ref_mut(s),
+        KiwiConstraint::try_construct(constraint),
+    ) else {
         return &NULL_OBJECT_ERR;
     };
     match s.solver.remove_constraint(&constraint) {
@@ -183,7 +191,7 @@ pub unsafe extern "C" fn kiwi_solver_add_edit_var(
 ) -> *const KiwiErr {
     use AddEditVariableError::*;
 
-    let (Some(s), Some(var)) = (not_null_ref_mut(s), SolverVariable::try_from_raw(var)) else {
+    let (Some(s), Some(var)) = (not_null_ref_mut(s), SolverVariable::try_clone_raw(var)) else {
         return &NULL_OBJECT_ERR;
     };
     match s.solver.add_edit_variable(var, strength) {
@@ -202,7 +210,7 @@ pub unsafe extern "C" fn kiwi_solver_remove_edit_var(
 ) -> *const KiwiErr {
     use RemoveEditVariableError::*;
 
-    let (Some(s), Some(var)) = (not_null_ref_mut(s), SolverVariable::try_from_raw(var)) else {
+    let (Some(s), Some(var)) = (not_null_ref_mut(s), SolverVariable::try_clone_raw(var)) else {
         return &NULL_OBJECT_ERR;
     };
 
@@ -225,7 +233,7 @@ pub unsafe extern "C" fn kiwi_solver_suggest_value(
 ) -> *const KiwiErr {
     use SuggestValueError::*;
 
-    let (Some(s), Some(var)) = (not_null_ref_mut(s), SolverVariable::try_from_raw(var)) else {
+    let (Some(s), Some(var)) = (not_null_ref_mut(s), SolverVariable::try_clone_raw(var)) else {
         return &NULL_OBJECT_ERR;
     };
 
@@ -245,7 +253,7 @@ pub unsafe extern "C" fn kiwi_solver_has_edit_var(
     s: *const KiwiSolver,
     var: *const KiwiVar,
 ) -> bool {
-    match (not_null_ref(s), SolverVariable::try_from_raw(var)) {
+    match (not_null_ref(s), SolverVariable::try_clone_raw(var)) {
         (Some(s), Some(var)) => s.solver.has_edit_variable(&var),
         _ => false,
     }
@@ -256,7 +264,7 @@ pub unsafe extern "C" fn kiwi_solver_has_constraint(
     s: *const KiwiSolver,
     constraint: *const KiwiConstraintPtr,
 ) -> bool {
-    match (not_null_ref(s), try_to_constraint(constraint)) {
+    match (not_null_ref(s), KiwiConstraint::try_construct(constraint)) {
         (Some(s), Some(constraint)) => s.solver.has_constraint(&constraint),
         _ => false,
     }

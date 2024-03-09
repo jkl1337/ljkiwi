@@ -75,7 +75,7 @@ typedef struct KiwiErr {
 } KiwiErr;
 
 struct KiwiSolver;
-LJKIWI_EXP void kiwi_solver_type_info(unsigned sz_align[2]);
+LJKIWI_EXP void kiwi_solver_type_layout(unsigned sz_align[2]);
 
 LJKIWI_EXP void kiwi_str_release(char* str);
 LJKIWI_EXP void kiwi_err_release(const KiwiErr* err);

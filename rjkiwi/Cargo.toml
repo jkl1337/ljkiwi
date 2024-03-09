@@ -17,3 +17,7 @@ mimalloc = { version = "0.1", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 mimalloc = { version = "0.1", features = ["local_dynamic_tls"], optional = true }
+
+[profile.release]
+lto = "fat"
+panic = "abort"

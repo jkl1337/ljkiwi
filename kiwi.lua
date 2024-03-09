@@ -33,9 +33,9 @@ if not ljkiwi then
 end
 
 do
-   ffi.cdef("void kiwi_solver_type_info(unsigned sz_align[2]);")
+   ffi.cdef("void kiwi_solver_type_layout(unsigned sz_align[2]);")
    local ti = ffi.new("unsigned[2]")
-   ljkiwi.kiwi_solver_type_info(ti)
+   ljkiwi.kiwi_solver_type_layout(ti)
    ffi.cdef(
       "typedef struct KiwiSolver { unsigned char b_[$]; } __attribute__((aligned($))) KiwiSolver;",
       ti[0],
@@ -89,12 +89,19 @@ void kiwi_constraint_init(
 void kiwi_constraint_destroy(KiwiConstraint* c);
 
 struct KiwiVar {
+   size_t ref_count_;
    double value_;
    const char* name_;
 };
+
+void kiwi_var_free(KiwiVar* var);
+
 ]])
 else
    ffi.cdef([[
+void kiwi_var_release(KiwiVar* var);
+void kiwi_var_retain(KiwiVar* var);
+
 typedef struct KiwiConstraint KiwiConstraint;
 
 KiwiConstraint* kiwi_constraint_new(
@@ -108,6 +115,7 @@ void kiwi_constraint_retain(KiwiConstraint* c);
 
 double kiwi_constraint_strength(const KiwiConstraint* c);
 enum KiwiRelOp kiwi_constraint_op(const KiwiConstraint* c);
+
 ]])
 end
 
@@ -138,8 +146,6 @@ void kiwi_str_release(char *);
 void kiwi_err_release(const KiwiErr *);
 
 KiwiVar* kiwi_var_new(const char* name);
-void kiwi_var_release(KiwiVar* var);
-void kiwi_var_retain(KiwiVar* var);
 
 const char* kiwi_var_name(const KiwiVar* var);
 void kiwi_var_set_name(KiwiVar* var, const char* name);
@@ -256,12 +262,26 @@ function kiwi.is_constraint(o)
 end
 
 local new_constraint
+local var_retain
+local var_release
+
 if RUST then
    ---@return kiwi.Constraint
    function new_constraint(lhs, rhs, op, strength)
       local c = ffi_new(Constraint, (lhs and lhs.term_count or 0) + (rhs and rhs.term_count or 0))
       ljkiwi.kiwi_constraint_init(c, lhs, rhs, op or "EQ", strength or REQUIRED)
       return ffi_gc(c, ljkiwi.kiwi_constraint_destroy) --[[@as kiwi.Constraint]]
+   end
+
+   function var_retain(var)
+      var.ref_count_ = var.ref_count_ + 1
+   end
+
+   function var_release(var)
+      var.ref_count_ = var.ref_count_ - 1
+      if var.ref_count_ == 0 then
+         ljkiwi.kiwi_var_free(var)
+      end
    end
 else
    function new_constraint(lhs, rhs, op, strength)
@@ -270,6 +290,10 @@ else
          ljkiwi.kiwi_constraint_release
       ) --[[@as kiwi.Constraint]]
    end
+
+   function var_retain(var)
+      ljkiwi.kiwi_var_retain(var)
+   end
 end
 
 ---@param expr kiwi.Expression
@@ -277,7 +301,7 @@ end
 ---@param coeff number?
 ---@nodiscard
 local function add_expr_term(expr, var, coeff)
-   local ret = ffi_gc(ffi_new(Expression, expr.term_count + 1), ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
+   local ret = ffi_new(Expression, expr.term_count + 1) --[[@as kiwi.Expression]]
    ffi_copy(ret.terms_, expr.terms_, SIZEOF_TERM * expr.term_count)
    local dt = ret.terms_[expr.term_count]
    dt.var = var
@@ -285,7 +309,7 @@ local function add_expr_term(expr, var, coeff)
    ret.constant = expr.constant
    ret.term_count = expr.term_count + 1
    ljkiwi.kiwi_expression_retain(ret)
-   return ret
+   return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
 end
 
 ---@param constant number
@@ -293,14 +317,15 @@ end
 ---@param coeff number?
 ---@nodiscard
 local function new_expr_one(constant, var, coeff)
-   local ret = ffi_gc(ffi_new(Expression, 1), ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
+   local ret = ffi_new(Expression, 1) --[[@as kiwi.Expression]]
    local dt = ret.terms_[0]
    dt.var = var
    dt.coefficient = coeff or 1.0
    ret.constant = constant
    ret.term_count = 1
-   ljkiwi.kiwi_expression_retain(ret)
-   return ret
+   ret.owner = ret
+   var_retain(var)
+   return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
 end
 
 ---@param constant number
@@ -310,7 +335,7 @@ end
 ---@param coeff2 number?
 ---@nodiscard
 local function new_expr_pair(constant, var1, var2, coeff1, coeff2)
-   local ret = ffi_gc(ffi_new(Expression, 2), ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
+   local ret = ffi_new(Expression, 2) --[[@as kiwi.Expression]]
    local dt = ret.terms_[0]
    dt.var = var1
    dt.coefficient = coeff1 or 1.0
@@ -319,8 +344,10 @@ local function new_expr_pair(constant, var1, var2, coeff1, coeff2)
    dt.coefficient = coeff2 or 1.0
    ret.constant = constant
    ret.term_count = 2
-   ljkiwi.kiwi_expression_retain(ret)
-   return ret
+   ret.owner = ret
+   var_retain(var1)
+   var_retain(var2)
+   return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
 end
 
 local function typename(o)
@@ -449,7 +476,7 @@ do
 
    if RUST then
       function Var_mt:__new(name)
-         return ffi_gc(ljkiwi.kiwi_var_new(name)[0], ljkiwi.kiwi_var_release)
+         return ffi_gc(ljkiwi.kiwi_var_new(name)[0], var_release)
       end
 
       --- Get the name of the variable.
@@ -581,16 +608,23 @@ do
 
    local Term_mt = { __index = Term_cls }
 
-   local function term_gc(term)
-      ljkiwi.kiwi_var_release(term.var)
+   local term_release
+   if RUST then
+      function term_release(term)
+         var_release(term.var)
+      end
+   else
+      function term_release(term)
+         ljkiwi.kiwi_var_release(term.var)
+      end
    end
 
    function Term_mt.__new(T, var, coefficient)
-      local t = ffi_gc(ffi_new(T), term_gc) --[[@as kiwi.Term]]
-      ljkiwi.kiwi_var_retain(var)
+      local t = ffi_new(T) --[[@as kiwi.Term]]
       t.var = var
       t.coefficient = coefficient or 1.0
-      return t
+      var_retain(var)
+      return ffi_gc(t, term_release)
    end
 
    function Term_mt.__mul(a, b)
@@ -664,7 +698,7 @@ do
    ---@param constant number
    ---@nodiscard
    local function mul_expr_coeff(expr, constant)
-      local ret = ffi_gc(ffi_new(Expression, expr.term_count), ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
+      local ret = ffi_new(Expression, expr.term_count) --[[@as kiwi.Expression]]
       for i = 0, expr.term_count - 1 do
          local st = expr.terms_[i] --[[@as kiwi.Term]]
          local dt = ret.terms_[i] --[[@as kiwi.Term]]
@@ -674,7 +708,7 @@ do
       ret.constant = expr.constant * constant
       ret.term_count = expr.term_count
       ljkiwi.kiwi_expression_retain(ret)
-      return ret
+      return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
    end
 
    ---@param a kiwi.Expression
@@ -683,7 +717,7 @@ do
    local function add_expr_expr(a, b)
       local a_count = a.term_count
       local b_count = b.term_count
-      local ret = ffi_gc(ffi_new(Expression, a_count + b_count), ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
+      local ret = ffi_new(Expression, a_count + b_count) --[[@as kiwi.Expression]]
 
       for i = 0, a_count - 1 do
          local dt = ret.terms_[i] --[[@as kiwi.Term]]
@@ -700,19 +734,19 @@ do
       ret.constant = a.constant + b.constant
       ret.term_count = a_count + b_count
       ljkiwi.kiwi_expression_retain(ret)
-      return ret
+      return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
    end
 
    ---@param expr kiwi.Expression
    ---@param constant number
    ---@nodiscard
    local function new_expr_constant(expr, constant)
-      local ret = ffi_gc(ffi_new(Expression, expr.term_count), ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
+      local ret = ffi_new(Expression, expr.term_count) --[[@as kiwi.Expression]]
       ffi_copy(ret.terms_, expr.terms_, SIZEOF_TERM * expr.term_count)
       ret.constant = constant
       ret.term_count = expr.term_count
       ljkiwi.kiwi_expression_retain(ret)
-      return ret
+      return ffi_gc(ret, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
    end
 
    ---@return number
@@ -749,7 +783,7 @@ do
 
    function Expression_mt:__new(constant, ...)
       local term_count = select("#", ...)
-      local e = ffi_gc(ffi_new(self, term_count), ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
+      local e = ffi_new(self, term_count) --[[@as kiwi.Expression]]
       e.term_count = term_count
       e.constant = constant
       for i = 1, term_count do
@@ -759,7 +793,7 @@ do
          dt.coefficient = t.coefficient
       end
       ljkiwi.kiwi_expression_retain(e)
-      return e
+      return ffi_gc(e, ljkiwi.kiwi_expression_destroy) --[[@as kiwi.Expression]]
    end
 
    function Expression_mt.__mul(a, b)
@@ -898,12 +932,11 @@ do
 
    local OPS = { [0] = "<=", ">=", "==" }
 
-   local strength = kiwi.strength
    local STRENGTH_NAMES = {
-      [strength.REQUIRED] = "required",
-      [strength.STRONG] = "strong",
-      [strength.MEDIUM] = "medium",
-      [strength.WEAK] = "weak",
+      [kiwi.strength.REQUIRED] = "required",
+      [kiwi.strength.STRONG] = "strong",
+      [kiwi.strength.MEDIUM] = "medium",
+      [kiwi.strength.WEAK] = "weak",
    }
 
    function Constraint_mt:__tostring()
@@ -946,7 +979,7 @@ do
 
    local pair_ratio = constraints.pair_ratio
 
-   --- Create a constraint between a pair of variables with ratio.
+   --- Create a constraint between a pair of variables with offset.
    --- The constraint is of the form `left [op|==] right + [constant|0.0]`.
    ---@param left kiwi.Var
    ---@param right kiwi.Var
@@ -982,7 +1015,6 @@ end
 do
    local bit = require("bit")
    local band, bor, lshift = bit.band, bit.bor, bit.lshift
-   local C = ffi.C
 
    --- Produce a custom error raise mask
    --- Error kinds specified in the mask will not cause a lua
