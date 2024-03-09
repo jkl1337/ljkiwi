@@ -1,8 +1,9 @@
 rockspec_format = "3.0"
 package = "kiwi"
-version = "scm-1"
+version = "0.2.1-1"
 source = {
    url = "git+https://github.com/jkl1337/ljkiwi",
+   tag = "v0.2.1",
 }
 description = {
    summary = "LuaJIT FFI and Lua binding for C++ and Rust kiwi constraint solvers.",
