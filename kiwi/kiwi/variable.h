@@ -13,11 +13,12 @@ namespace kiwi
 {
 
 class SmallStr {
+    static constexpr const std::size_t INLINE_LEN = 15;
 public:
     size_t len_;
     union {
         char *ptr_;
-        char inline_[16];
+        char inline_[INLINE_LEN + 1];
     } d_;
 
     SmallStr() : len_(0) { d_.inline_[0] = 0; }
@@ -29,7 +30,7 @@ public:
         }
         len_ = std::strlen(str);
         char *dest;
-        if (len_ > 15) {
+        if (len_ > INLINE_LEN) {
             d_.ptr_ = new char[len_ + 1];
             dest = d_.ptr_;
         } else {
@@ -38,14 +39,14 @@ public:
         std::memcpy(dest, str, len_ + 1);
     }
 
-    ~SmallStr() { if (len_ > 15) delete[] d_.ptr_; }
+    ~SmallStr() { if (len_ > INLINE_LEN) delete[] d_.ptr_; }
     SmallStr(const SmallStr &other) : len_(other.len_) {
         copy(other);
     }
 
     SmallStr(SmallStr &&other) noexcept : len_(other.len_) {
         other.len_ = 0;
-        if (len_ > 15) {
+        if (len_ > INLINE_LEN) {
             d_.ptr_ = other.d_.ptr_;
         } else {
             std::memcpy(d_.inline_, other.d_.inline_, len_ + 1);
@@ -54,7 +55,7 @@ public:
 
     SmallStr& operator=(const SmallStr &other) {
         if (this == &other) return *this;
-        if (len_ > 15) delete[] d_.ptr_;
+        if (len_ > INLINE_LEN) delete[] d_.ptr_;
         len_ = other.len_;
         copy(other);
         return *this;
@@ -66,12 +67,12 @@ public:
         return *this;
     }
 
-    const char *c_str() const { return len_ > 15 ? d_.ptr_ : d_.inline_; }
+    const char *c_str() const { return len_ > INLINE_LEN ? d_.ptr_ : d_.inline_; }
     explicit operator bool() const { return len_ != 0; }
 
 private:
     void copy(const SmallStr &other) {
-        if (len_ > 15) {
+        if (len_ > INLINE_LEN) {
             d_.ptr_ = new char[len_ + 1];
             std::memcpy(d_.ptr_, other.d_.ptr_, len_ + 1);
         } else {

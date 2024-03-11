@@ -11,10 +11,12 @@ use std::{
     ptr::{self, drop_in_place, NonNull},
 };
 
+const INLINE_NAME_LEN: usize = 15;
+
 #[repr(C)]
 pub union KiwiVarNameData {
     ptr: *mut c_char,
-    inline: [u8; 16],
+    inline: [u8; INLINE_NAME_LEN + 1],
 }
 
 #[repr(C)]
@@ -28,7 +30,7 @@ impl KiwiVarName {
         let len = name.to_bytes_with_nul().len() - 1;
         KiwiVarName {
             len,
-            data: if len > 15 {
+            data: if len > INLINE_NAME_LEN {
                 KiwiVarNameData {
                     ptr: name.to_owned().into_raw(),
                 }
@@ -42,7 +44,7 @@ impl KiwiVarName {
 
     fn as_cstr(&self) -> &CStr {
         unsafe {
-            if self.len > 15 {
+            if self.len > INLINE_NAME_LEN {
                 CStr::from_ptr(self.data.ptr)
             } else {
                 CStr::from_bytes_with_nul_unchecked(&self.data.inline[..=self.len + 1])
@@ -51,14 +53,14 @@ impl KiwiVarName {
     }
 
     fn set(&mut self, name: &CStr) {
-        if self.len > 15 {
+        if self.len > INLINE_NAME_LEN {
             unsafe {
                 drop(CString::from_raw(self.data.ptr));
             }
         }
         self.len = name.to_bytes_with_nul().len() - 1;
         unsafe {
-            if self.len > 15 {
+            if self.len > INLINE_NAME_LEN {
                 self.data.ptr = name.to_owned().into_raw();
             } else {
                 self.data.inline[..self.len + 1].copy_from_slice(name.to_bytes_with_nul());
@@ -69,7 +71,7 @@ impl KiwiVarName {
 
 impl Drop for KiwiVarName {
     fn drop(&mut self) {
-        if self.len > 15 {
+        if self.len > INLINE_NAME_LEN {
             unsafe {
                 drop(CString::from_raw(self.data.ptr));
             }
