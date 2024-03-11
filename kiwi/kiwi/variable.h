@@ -40,26 +40,21 @@ public:
     }
 
     ~SmallStr() { if (len_ > INLINE_LEN) delete[] d_.ptr_; }
-    SmallStr(const SmallStr &other) : len_(other.len_) {
-        copy(other);
-    }
 
-    SmallStr(SmallStr &&other) noexcept : len_(other.len_) {
-        other.len_ = 0;
+    SmallStr(const SmallStr &other) : len_(other.len_) {
         if (len_ > INLINE_LEN) {
-            d_.ptr_ = other.d_.ptr_;
+            d_.ptr_ = new char[len_ + 1];
+            std::memcpy(d_.ptr_, other.d_.ptr_, len_ + 1);
         } else {
             std::memcpy(d_.inline_, other.d_.inline_, len_ + 1);
         }
     }
 
-    SmallStr& operator=(const SmallStr &other) {
-        if (this == &other) return *this;
-        if (len_ > INLINE_LEN) delete[] d_.ptr_;
-        len_ = other.len_;
-        copy(other);
-        return *this;
+    SmallStr(SmallStr &&other) noexcept : len_(other.len_), d_(other.d_) {
+        other.len_ = 0;
     }
+
+    SmallStr& operator=(const SmallStr &) = delete;
 
     SmallStr& operator=(SmallStr &&other) noexcept {
         std::swap(len_, other.len_);
@@ -69,16 +64,6 @@ public:
 
     const char *c_str() const { return len_ > INLINE_LEN ? d_.ptr_ : d_.inline_; }
     explicit operator bool() const { return len_ != 0; }
-
-private:
-    void copy(const SmallStr &other) {
-        if (len_ > INLINE_LEN) {
-            d_.ptr_ = new char[len_ + 1];
-            std::memcpy(d_.ptr_, other.d_.ptr_, len_ + 1);
-        } else {
-            std::memcpy(d_.inline_, other.d_.inline_, len_ + 1);
-        }
-    }
 };
 
 class VariableData
@@ -97,14 +82,7 @@ public:
     }
 
     static VariableData* alloc(const char *name = nullptr) {
-        VariableData *data = new VariableData{1, 0.0};
-        try {
-            data->setName(name);
-        } catch (...) {
-            delete data;
-            throw;
-        }
-        return data;
+        return new VariableData{1, 0.0, SmallStr(name)};
     }
 
     void free() { delete this; }
