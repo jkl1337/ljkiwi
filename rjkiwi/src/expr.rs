@@ -36,7 +36,11 @@ pub type KiwiExpressionPtr = KiwiExpression<[KiwiTerm; 0]>;
 impl KiwiExpression {
     unsafe fn from_raw<'a>(e: *const KiwiExpressionPtr) -> &'a Self {
         &*(core::slice::from_raw_parts(e as *const (), (*e).term_count.max(0) as usize)
-            as *const [()] as *const KiwiExpression)
+            as *const [()] as *const Self)
+    }
+
+    unsafe fn from_raw_mut_ptr(e: *mut KiwiExpressionPtr, len: usize) -> *mut Self {
+        core::slice::from_raw_parts_mut(e as *mut (), len) as *mut [()] as *mut Self
     }
 
     unsafe fn try_from_raw<'a>(e: *const KiwiExpressionPtr) -> Option<&'a Self> {
@@ -65,9 +69,7 @@ pub unsafe extern "C" fn kiwi_expression_add_term(
     }
 
     let n_terms = e.terms_.len() + 1;
-
-    let out = core::slice::from_raw_parts_mut(out as *mut (), n_terms) as *mut [()]
-        as *mut KiwiExpression;
+    let out = KiwiExpression::from_raw_mut_ptr(out, n_terms);
 
     (*out).owner = out as *mut c_void;
     (*out).term_count = n_terms as c_int;
@@ -95,9 +97,7 @@ pub unsafe extern "C" fn kiwi_expression_set_constant(
     };
 
     let n_terms = e.terms_.len();
-
-    let out = core::slice::from_raw_parts_mut(out as *mut (), n_terms) as *mut [()]
-        as *mut KiwiExpression;
+    let out = KiwiExpression::from_raw_mut_ptr(out, n_terms);
 
     (*out).owner = out as *mut c_void;
     (*out).term_count = n_terms as c_int;
@@ -115,9 +115,7 @@ pub unsafe extern "C" fn kiwi_expression_retain(e: *mut KiwiExpressionPtr) {
         return;
     };
 
-    let e = core::slice::from_raw_parts_mut(e as *mut (), (*e).term_count.max(0) as usize)
-        as *mut [()] as *mut KiwiExpression;
-
+    let e = KiwiExpression::from_raw_mut_ptr(e, (*e).term_count.max(0) as usize);
     (*e).terms_.iter().for_each(|t| {
         KiwiVar::retain_raw(t.var);
     });
@@ -130,9 +128,7 @@ pub unsafe extern "C" fn kiwi_expression_destroy(e: *mut KiwiExpressionPtr) {
         return;
     };
 
-    let e = core::slice::from_raw_parts_mut(e as *mut (), (*e).term_count.max(0) as usize)
-        as *mut [()] as *mut KiwiExpression;
-
+    let e = KiwiExpression::from_raw_mut_ptr(e, (*e).term_count.max(0) as usize);
     if (*e).owner == e as *mut c_void {
         (*e).terms_
             .iter()

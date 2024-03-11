@@ -81,8 +81,7 @@ LJKIWI_EXP void kiwi_str_release(char* str);
 LJKIWI_EXP void kiwi_err_release(const KiwiErr* err);
 
 LJKIWI_EXP KiwiVar* kiwi_var_new(const char* name);
-LJKIWI_EXP void kiwi_var_release(KiwiVar* var);
-LJKIWI_EXP void kiwi_var_retain(KiwiVar* var);
+LJKIWI_EXP void kiwi_var_free(KiwiVar* var);
 
 LJKIWI_EXP const char* kiwi_var_name(const KiwiVar* var);
 LJKIWI_EXP void kiwi_var_set_name(KiwiVar* var, const char* name);

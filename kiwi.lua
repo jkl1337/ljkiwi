@@ -48,6 +48,26 @@ typedef struct KiwiVar KiwiVar;
 
 enum KiwiRelOp { LE, GE, EQ };
 
+struct KiwiSmallStr {
+   size_t len_;
+   union {
+      char *ptr_;
+      char inline_[16];
+   };
+};
+
+struct KiwiVar {
+   size_t ref_count_;
+   double value_;
+   struct KiwiSmallStr name_;
+};
+
+KiwiVar* kiwi_var_new(const char* name);
+void kiwi_var_free(KiwiVar* var);
+const char* kiwi_var_name(const KiwiVar* var);
+void kiwi_var_set_name(KiwiVar* var, const char* name);
+void kiwi_var_set_value(KiwiVar* var, double value);
+
 typedef struct KiwiTerm {
    KiwiVar* var;
    double coefficient;
@@ -88,20 +108,9 @@ void kiwi_constraint_init(
     double strength
 );
 void kiwi_constraint_destroy(KiwiConstraint* c);
-
-struct KiwiVar {
-   size_t ref_count_;
-   double value_;
-   const char* name_;
-};
-
-void kiwi_var_free(KiwiVar* var);
 ]])
 else
    ffi.cdef([[
-void kiwi_var_release(KiwiVar* var);
-void kiwi_var_retain(KiwiVar* var);
-
 typedef struct KiwiConstraint KiwiConstraint;
 
 KiwiConstraint* kiwi_constraint_new(
@@ -115,7 +124,6 @@ void kiwi_constraint_retain(KiwiConstraint* c);
 
 double kiwi_constraint_strength(const KiwiConstraint* c);
 enum KiwiRelOp kiwi_constraint_op(const KiwiConstraint* c);
-
 ]])
 end
 
@@ -144,13 +152,6 @@ struct KiwiSolver;
 
 void kiwi_str_release(char *);
 void kiwi_err_release(const KiwiErr *);
-
-KiwiVar* kiwi_var_new(const char* name);
-
-const char* kiwi_var_name(const KiwiVar* var);
-void kiwi_var_set_name(KiwiVar* var, const char* name);
-double kiwi_var_value(const KiwiVar* var);
-void kiwi_var_set_value(KiwiVar* var, double value);
 
 bool kiwi_constraint_violated(const KiwiConstraint* c);
 int kiwi_constraint_expression(KiwiConstraint* c, KiwiExpression* out, int out_size);
@@ -262,8 +263,6 @@ function kiwi.is_constraint(o)
 end
 
 local new_constraint
-local var_retain
-local var_release
 
 if RUST then
    ---@return kiwi.Constraint
@@ -272,17 +271,6 @@ if RUST then
       ljkiwi.kiwi_constraint_init(c, lhs, rhs, op or "EQ", strength or REQUIRED)
       return ffi_gc(c, ljkiwi.kiwi_constraint_destroy) --[[@as kiwi.Constraint]]
    end
-
-   function var_retain(var)
-      var.ref_count_ = var.ref_count_ + 1
-   end
-
-   function var_release(var)
-      var.ref_count_ = var.ref_count_ - 1
-      if var.ref_count_ == 0 then
-         ljkiwi.kiwi_var_free(var)
-      end
-   end
 else
    function new_constraint(lhs, rhs, op, strength)
       return ffi_gc(
@@ -290,9 +278,16 @@ else
          ljkiwi.kiwi_constraint_release
       ) --[[@as kiwi.Constraint]]
    end
+end
 
-   function var_retain(var)
-      ljkiwi.kiwi_var_retain(var)
+local function var_retain(var)
+   var.ref_count_ = var.ref_count_ + 1
+end
+
+local function var_release(var)
+   var.ref_count_ = var.ref_count_ - 1
+   if var.ref_count_ == 0 then
+      ljkiwi.kiwi_var_free(var)
    end
 end
 
@@ -442,7 +437,6 @@ end
 do
    --- Variables are the values the constraint solver calculates.
    ---@class kiwi.Var: ffi.cdata*
-   ---@field package name_ ffi.cdata*
    ---@field package value_ number
    ---@overload fun(name: string?): kiwi.Var
    ---@operator mul(number): kiwi.Term
@@ -468,40 +462,28 @@ do
       __index = Var_cls,
    }
 
-   if RUST then
-      function Var_mt:__new(name)
-         return ffi_gc(ljkiwi.kiwi_var_new(name)[0], var_release)
-      end
+   function Var_mt:__new(name)
+      return ffi_gc(ljkiwi.kiwi_var_new(name)[0], var_release)
+   end
 
-      --- Get the name of the variable.
-      ---@return string
-      ---@nodiscard
-      function Var_cls:name()
-         return self.name_ ~= nil and ffi_string(self.name_) or ""
-      end
+   --- Get the name of the variable.
+   ---@return string
+   ---@nodiscard
+   function Var_cls:name()
+      return ffi_string(ljkiwi.kiwi_var_name(self))
+   end
 
-      --- Get the current value of the variable.
-      ---@return number
-      ---@nodiscard
-      function Var_cls:value()
-         return self.value_
-      end
+   --- Get the current value of the variable.
+   ---@return number
+   ---@nodiscard
+   function Var_cls:value()
+      return self.value_
+   end
 
-      --- Set the value of the variable.
-      ---@param value number
-      function Var_cls:set(value)
-         self.value_ = value
-      end
-   else
-      function Var_mt:__new(name)
-         return ffi_gc(ljkiwi.kiwi_var_new(name), ljkiwi.kiwi_var_release)
-      end
-
-      function Var_cls:name()
-         return ffi_string(ljkiwi.kiwi_var_name(self))
-      end
-      Var_cls.value = ljkiwi.kiwi_var_value
-      Var_cls.set = ljkiwi.kiwi_var_set_value
+   --- Set the value of the variable.
+   ---@param value number
+   function Var_cls:set(value)
+      self.value_ = value
    end
 
    --- Create a term from this variable.
@@ -602,15 +584,8 @@ do
 
    local Term_mt = { __index = Term_cls }
 
-   local term_release
-   if RUST then
-      function term_release(term)
-         var_release(term.var)
-      end
-   else
-      function term_release(term)
-         ljkiwi.kiwi_var_release(term.var)
-      end
+   local function term_release(term)
+      var_release(term.var)
    end
 
    function Term_mt.__new(T, var, coefficient)

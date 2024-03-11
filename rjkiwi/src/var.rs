@@ -4,43 +4,92 @@ use core::{
 };
 use std::{
     alloc::{alloc, dealloc, handle_alloc_error, Layout},
-    cell::Cell,
+    cell::{Cell, UnsafeCell},
     ffi::CString,
     hash::{Hash, Hasher},
     marker::PhantomData,
-    ptr::{self, drop_in_place, null_mut, NonNull},
+    ptr::{self, drop_in_place, NonNull},
 };
 
 #[repr(C)]
-pub struct KiwiVar {
-    pub ref_count_: Cell<usize>,
-    pub value_: Cell<c_double>,
-    pub name_: Cell<*mut c_char>,
+pub union KiwiVarNameData {
+    ptr: *mut c_char,
+    inline: [u8; 16],
 }
 
-impl Drop for KiwiVar {
-    fn drop(&mut self) {
-        let name = self.name_.get();
-        if !name.is_null() {
+#[repr(C)]
+pub struct KiwiVarName {
+    pub len: usize,
+    pub data: KiwiVarNameData,
+}
+
+impl KiwiVarName {
+    fn new(name: &CStr) -> Self {
+        let len = name.to_bytes_with_nul().len() - 1;
+        KiwiVarName {
+            len,
+            data: if len > 15 {
+                KiwiVarNameData {
+                    ptr: name.to_owned().into_raw(),
+                }
+            } else {
+                let mut data = KiwiVarNameData { inline: [0; 16] };
+                unsafe { data.inline[..len + 1].copy_from_slice(name.to_bytes_with_nul()) };
+                data
+            },
+        }
+    }
+
+    fn as_cstr(&self) -> &CStr {
+        unsafe {
+            if self.len > 15 {
+                CStr::from_ptr(self.data.ptr)
+            } else {
+                CStr::from_bytes_with_nul_unchecked(&self.data.inline[..=self.len + 1])
+            }
+        }
+    }
+
+    fn set(&mut self, name: &CStr) {
+        if self.len > 15 {
             unsafe {
-                drop(CString::from_raw(name));
+                drop(CString::from_raw(self.data.ptr));
+            }
+        }
+        self.len = name.to_bytes_with_nul().len() - 1;
+        unsafe {
+            if self.len > 15 {
+                self.data.ptr = name.to_owned().into_raw();
+            } else {
+                self.data.inline[..self.len + 1].copy_from_slice(name.to_bytes_with_nul());
             }
         }
     }
 }
 
+impl Drop for KiwiVarName {
+    fn drop(&mut self) {
+        if self.len > 15 {
+            unsafe {
+                drop(CString::from_raw(self.data.ptr));
+            }
+        }
+    }
+}
+
+#[repr(C)]
+pub struct KiwiVar {
+    pub ref_count_: Cell<usize>,
+    pub value_: Cell<c_double>,
+    pub name_: UnsafeCell<KiwiVarName>,
+}
+
 impl fmt::Debug for KiwiVar {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = unsafe {
-            match NonNull::new(self.name_.get()) {
-                Some(ptr) => CStr::from_ptr(ptr.as_ptr()),
-                None => CStr::from_bytes_with_nul_unchecked(b"\0"),
-            }
-        };
         f.debug_struct("KiwiVar")
             .field("ref_count", &self.ref_count_.get())
             .field("value", &self.value_.get())
-            .field("name", &name)
+            .field("name", &self.name())
             .finish()
     }
 }
@@ -62,6 +111,12 @@ impl KiwiVar {
     #[inline]
     pub(crate) fn value(&self) -> c_double {
         self.value_.get()
+    }
+
+    #[inline]
+    pub(crate) fn name(&self) -> String {
+        let name = unsafe { &*self.name_.get() };
+        name.as_cstr().to_string_lossy().into_owned()
     }
 
     #[inline]
@@ -161,18 +216,19 @@ impl Hash for SolverVariable {
 
 impl fmt::Debug for SolverVariable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = unsafe {
-            match NonNull::new(self.inner().name_.get()) {
-                Some(ptr) => CStr::from_ptr(ptr.as_ptr()),
-                None => CStr::from_bytes_with_nul_unchecked(b"\0"),
-            }
-        };
-        f.debug_tuple("SolverVariable").field(&name).finish()
+        f.debug_tuple("SolverVariable")
+            .field(&self.inner().name())
+            .finish()
     }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn kiwi_var_new(name: *const c_char) -> *const KiwiVar {
+    let name = match NonNull::new(name as *mut c_char) {
+        Some(name) => CStr::from_ptr(name.as_ptr()),
+        None => CStr::from_bytes_with_nul_unchecked(b"\0"),
+    };
+
     let layout = Layout::new::<KiwiVar>();
     let p = alloc(layout) as *mut KiwiVar;
     if p.is_null() {
@@ -183,10 +239,7 @@ pub unsafe extern "C" fn kiwi_var_new(name: *const c_char) -> *const KiwiVar {
         KiwiVar {
             ref_count_: Cell::new(1),
             value_: Cell::new(0.0),
-            name_: Cell::new(match NonNull::new(name as *mut c_char) {
-                None => null_mut(),
-                Some(name) => CStr::from_ptr(name.as_ptr()).to_owned().into_raw(),
-            }),
+            name_: UnsafeCell::new(KiwiVarName::new(name)),
         },
     );
     p
@@ -217,7 +270,7 @@ pub unsafe extern "C" fn kiwi_var_set_value(var: *const KiwiVar, value: c_double
 #[no_mangle]
 pub unsafe extern "C" fn kiwi_var_name(var: *const KiwiVar) -> *const c_char {
     match NonNull::new(var as *mut KiwiVar) {
-        Some(var) => var.as_ref().name_.get(),
+        Some(var) => unsafe { &*var.as_ref().name_.get() }.as_cstr().as_ptr(),
         None => CStr::from_bytes_with_nul_unchecked(b"\0").as_ptr(),
     }
 }
@@ -225,15 +278,11 @@ pub unsafe extern "C" fn kiwi_var_name(var: *const KiwiVar) -> *const c_char {
 #[no_mangle]
 pub unsafe extern "C" fn kiwi_var_set_name(var: *const KiwiVar, name: *const c_char) {
     if let Some(var) = NonNull::new(var as *mut KiwiVar) {
-        let old_name = var
-            .as_ref()
-            .name_
-            .replace(match NonNull::new(name as *mut c_char) {
-                None => null_mut(),
-                Some(name) => CStr::from_ptr(name.as_ptr()).to_owned().into_raw(),
-            });
-        if !old_name.is_null() {
-            drop(CString::from_raw(old_name));
-        }
+        let var_name = &mut *var.as_ref().name_.get();
+
+        var_name.set(match NonNull::new(name as *mut c_char) {
+            Some(name) => CStr::from_ptr(name.as_ptr()),
+            None => CStr::from_bytes_with_nul_unchecked(b"\0"),
+        });
     }
 }

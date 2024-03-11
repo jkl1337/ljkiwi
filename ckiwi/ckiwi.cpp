@@ -135,6 +135,17 @@ T* retain_unmanaged(T* p) {
    return p;
 }
 
+KiwiVar* var_retain(KiwiVar* var) {
+   if (lk_likely(var))
+      var->retain();
+   return var;
+}
+
+void var_release(KiwiVar* var) {
+   if (lk_likely(var))
+      var->release();
+}
+
 }  // namespace
 
 extern "C" {
@@ -150,19 +161,17 @@ void kiwi_err_release(const KiwiErr* err) {
 }
 
 KiwiVar* kiwi_var_new(const char* name) {
-   return make_unmanaged<VariableData>(lk_likely(name) ? name : "");
+   return VariableData::alloc(name);
 }
 
-void kiwi_var_release(KiwiVar* var) {
-   release_unmanaged(var);
-}
-
-void kiwi_var_retain(KiwiVar* var) {
-   retain_unmanaged(var);
+void kiwi_var_free(KiwiVar* var) {
+   if (lk_likely(var)) {
+      var->free();
+   }
 }
 
 const char* kiwi_var_name(const KiwiVar* var) {
-   return lk_likely(var) ? var->name().c_str() : "(<null>)";
+   return lk_likely(var) ? var->name() : "(<null>)";
 }
 
 void kiwi_var_set_name(KiwiVar* var, const char* name) {
@@ -171,19 +180,19 @@ void kiwi_var_set_name(KiwiVar* var, const char* name) {
 }
 
 double kiwi_var_value(const KiwiVar* var) {
-   return lk_likely(var) ? var->value() : std::numeric_limits<double>::quiet_NaN();
+   return lk_likely(var) ? var->value_ : std::numeric_limits<double>::quiet_NaN();
 }
 
 void kiwi_var_set_value(KiwiVar* var, double value) {
    if (lk_likely(var))
-      var->setValue(value);
+      var->value_ = value;
 }
 
 void kiwi_expression_retain(KiwiExpression* expr) {
    if (lk_unlikely(!expr))
       return;
    for (auto* t = expr->terms_; t != expr->terms_ + std::max(expr->term_count, 0); ++t) {
-      retain_unmanaged(t->var);
+      var_retain(t->var);
    }
    expr->owner = expr;
 }
@@ -194,7 +203,7 @@ void kiwi_expression_destroy(KiwiExpression* expr) {
 
    if (expr->owner == expr) {
       for (auto* t = expr->terms_; t != expr->terms_ + std::max(expr->term_count, 0); ++t) {
-         release_unmanaged(t->var);
+         var_release(t->var);
       }
    } else {
       release_unmanaged(static_cast<ConstraintData*>(expr->owner));
@@ -218,10 +227,10 @@ void kiwi_expression_add_term(
 
    auto* d = out->terms_;
    for (auto* s = expr->terms_; s != expr->terms_ + expr->term_count; ++s, ++d) {
-      d->var = retain_unmanaged(s->var);
+      d->var = var_retain(s->var);
       d->coefficient = s->coefficient;
    }
-   d->var = retain_unmanaged(var);
+   d->var = var_retain(var);
    d->coefficient = coefficient;
 }
 
@@ -241,7 +250,7 @@ void kiwi_expression_set_constant(
 
    auto* d = out->terms_;
    for (auto* s = expr->terms_; s != expr->terms_ + expr->term_count; ++s, ++d) {
-      d->var = retain_unmanaged(s->var);
+      d->var = var_retain(s->var);
       d->coefficient = s->coefficient;
    }
 }

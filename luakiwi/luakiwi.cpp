@@ -221,7 +221,6 @@ VariableData** var_new(lua_State* L) {
    return varp;
 }
 
-// note this expects the 2nd upvalue to have the variable weak table
 VariableData* var_register(lua_State* L, VariableData* var) {
    if (lk_unlikely(!var)) {
       lua_rawgeti(L, lua_upvalueindex(1), MEM_ERR_MSG);
@@ -331,7 +330,7 @@ inline int push_expr_one(lua_State* L, double constant, const KiwiTerm* term) {
    expr->constant = constant;
    expr->term_count = 1;
    expr->terms[0].coefficient = term->coefficient;
-   expr->terms[0].var = retain_unmanaged(term->var);
+   expr->terms[0].var = term->var->retain();
    return 1;
 }
 
@@ -340,9 +339,9 @@ inline int push_expr_pair(lua_State* L, double constant, const KiwiTerm* ta, con
    e->constant = constant;
    e->term_count = 2;
    e->terms[0].coefficient = ta->coefficient;
-   e->terms[0].var = retain_unmanaged(ta->var);
+   e->terms[0].var = ta->var->retain();
    e->terms[1].coefficient = tb->coefficient;
-   e->terms[1].var = retain_unmanaged(tb->var);
+   e->terms[1].var = tb->var->retain();
    return 1;
 }
 
@@ -352,9 +351,9 @@ push_expr_var_term(lua_State* L, double constant, VariableData* var, const KiwiT
    e->constant = constant;
    e->term_count = 2;
    e->terms[0].coefficient = 1.0;
-   e->terms[0].var = retain_unmanaged(var);
+   e->terms[0].var = var->retain();
    e->terms[1].coefficient = t->coefficient;
-   e->terms[1].var = retain_unmanaged(t->var);
+   e->terms[1].var = t->var->retain();
    return 1;
 }
 
@@ -365,10 +364,10 @@ int push_add_expr_term(lua_State* L, const KiwiExpression* expr, const KiwiTerm*
    int i = 0;
    for (; i < expr->term_count; ++i) {
       e->terms[i].coefficient = expr->terms[i].coefficient;
-      e->terms[i].var = retain_unmanaged(expr->terms[i].var);
+      e->terms[i].var = expr->terms[i].var->retain();
    }
    e->terms[i].coefficient = t->coefficient;
-   e->terms[i].var = retain_unmanaged(t->var);
+   e->terms[i].var = t->var->retain();
    return 1;
 }
 
@@ -436,7 +435,7 @@ int lkiwi_var_m_mul(lua_State* L) {
       auto* var = try_var(L, varidx);
       if (var) {
          auto* term = term_new(L);
-         term->var = retain_unmanaged(var);
+         term->var = var->retain();
          term->coefficient = num;
          return 1;
       }
@@ -452,14 +451,14 @@ int lkiwi_var_m_div(lua_State* L) {
       return op_error(L, "/", 1, 2);
    }
    auto* term = term_new(L);
-   term->var = retain_unmanaged(var);
+   term->var = var->retain();
    term->coefficient = 1.0 / num;
    return 1;
 }
 
 int lkiwi_var_m_unm(lua_State* L) {
    auto* term = term_new(L);
-   term->var = retain_unmanaged(get_var(L, 1));
+   term->var = get_var(L, 1)->retain();
    term->coefficient = -1.0;
    return 1;
 }
@@ -471,12 +470,12 @@ int lkiwi_var_m_eq(lua_State* L) {
 
 int lkiwi_var_m_tostring(lua_State* L) {
    auto* var = get_var(L, 1);
-   lua_pushfstring(L, "%s(%f)", var->name().c_str(), var->value());
+   lua_pushfstring(L, "%s(%f)", var->name(), var->value_);
    return 1;
 }
 
 int lkiwi_var_m_gc(lua_State* L) {
-   release_unmanaged(get_var(L, 1));
+   get_var(L, 1)->release();
    return 0;
 }
 
@@ -488,19 +487,19 @@ int lkiwi_var_set_name(lua_State* L) {
 }
 
 int lkiwi_var_name(lua_State* L) {
-   lua_pushstring(L, get_var(L, 1)->name().c_str());
+   lua_pushstring(L, get_var(L, 1)->name());
    return 1;
 }
 
 int lkiwi_var_set(lua_State* L) {
    auto* var = get_var(L, 1);
    const double value = luaL_checknumber(L, 2);
-   var->setValue(value);
+   var->value_ = value;
    return 0;
 }
 
 int lkiwi_var_value(lua_State* L) {
-   lua_pushnumber(L, get_var(L, 1)->value());
+   lua_pushnumber(L, get_var(L, 1)->value_);
    return 1;
 }
 
@@ -509,7 +508,7 @@ int lkiwi_var_toterm(lua_State* L) {
    double coefficient = luaL_optnumber(L, 2, 1.0);
    auto* term = term_new(L);
 
-   term->var = retain_unmanaged(var);
+   term->var = var->retain();
    term->coefficient = coefficient;
 
    return 1;
@@ -545,7 +544,7 @@ int lkiwi_var_new(lua_State* L) {
    const char* name = luaL_optstring(L, 1, "");
 
    auto* varp = var_new(L);
-   var_register(L, *varp = make_unmanaged<VariableData>(name));
+   var_register(L, *varp = VariableData::alloc(name));
 
    return 1;
 }
@@ -603,7 +602,7 @@ int lkiwi_term_m_mul(lua_State* L) {
       const auto* term = try_term(L, termidx);
       if (term) {
          auto* ret = term_new(L);
-         ret->var = retain_unmanaged(term->var);
+         ret->var = term->var->retain();
          ret->coefficient = term->coefficient * num;
          return 1;
       }
@@ -619,7 +618,7 @@ int lkiwi_term_m_div(lua_State* L) {
       return op_error(L, "/", 1, 2);
    }
    auto* ret = term_new(L);
-   ret->var = retain_unmanaged(term->var);
+   ret->var = term->var->retain();
    ret->coefficient = term->coefficient / num;
    return 1;
 }
@@ -627,7 +626,7 @@ int lkiwi_term_m_div(lua_State* L) {
 int lkiwi_term_m_unm(lua_State* L) {
    const auto* term = get_term(L, 1);
    auto* ret = term_new(L);
-   ret->var = retain_unmanaged(term->var);
+   ret->var = term->var->retain();
    ret->coefficient = -term->coefficient;
    return 1;
 }
@@ -638,18 +637,18 @@ int lkiwi_term_toexpr(lua_State* L) {
 
 int lkiwi_term_value(lua_State* L) {
    const auto* term = get_term(L, 1);
-   lua_pushnumber(L, term->var->value() * term->coefficient);
+   lua_pushnumber(L, term->var->value_ * term->coefficient);
    return 1;
 }
 
 int lkiwi_term_m_tostring(lua_State* L) {
    const auto* term = get_term(L, 1);
-   lua_pushfstring(L, "%f %s", term->coefficient, term->var->name().c_str());
+   lua_pushfstring(L, "%f %s", term->coefficient, term->var->name());
    return 1;
 }
 
 int lkiwi_term_m_gc(lua_State* L) {
-   release_unmanaged(get_term(L, 1)->var);
+   get_term(L, 1)->var->release();
    return 0;
 }
 
@@ -659,7 +658,7 @@ int lkiwi_term_m_index(lua_State* L) {
    const char* k = lua_tolstring(L, 2, &len);
    if (len == 3 && memcmp("var", k, len) == 0) {
       auto* varp = var_new(L);
-      var_register(L, *varp = retain_unmanaged(term->var));
+      var_register(L, *varp = term->var->retain());
       return 1;
    } else if (len == 11 && memcmp("coefficient", k, len) == 0) {
       lua_pushnumber(L, term->coefficient);
@@ -695,7 +694,7 @@ int lkiwi_term_new(lua_State* L) {
    auto* var = get_var(L, 1);
    double coefficient = luaL_optnumber(L, 2, 1.0);
    auto* term = term_new(L);
-   term->var = retain_unmanaged(var);
+   term->var = var->retain();
    term->coefficient = coefficient;
    return 1;
 }
@@ -703,7 +702,7 @@ int lkiwi_term_new(lua_State* L) {
 int push_expr_constant(lua_State* L, const KiwiExpression* expr, double constant) {
    auto* ne = expr_new(L, expr->term_count);
    for (int i = 0; i < expr->term_count; i++) {
-      ne->terms[i].var = retain_unmanaged(expr->terms[i].var);
+      ne->terms[i].var = expr->terms[i].var->retain();
       ne->terms[i].coefficient = expr->terms[i].coefficient;
    }
    ne->constant = constant;
@@ -716,7 +715,7 @@ int push_mul_expr_coeff(lua_State* L, const KiwiExpression* expr, double coeff) 
    ne->constant = expr->constant * coeff;
    ne->term_count = expr->term_count;
    for (int i = 0; i < expr->term_count; i++) {
-      ne->terms[i].var = retain_unmanaged(expr->terms[i].var);
+      ne->terms[i].var = expr->terms[i].var->retain();
       ne->terms[i].coefficient = expr->terms[i].coefficient * coeff;
    }
    return 1;
@@ -730,11 +729,11 @@ int push_add_expr_expr(lua_State* L, const KiwiExpression* a, const KiwiExpressi
    ne->term_count = na + nb;
 
    for (int i = 0; i < na; i++) {
-      ne->terms[i].var = retain_unmanaged(a->terms[i].var);
+      ne->terms[i].var = a->terms[i].var->retain();
       ne->terms[i].coefficient = a->terms[i].coefficient;
    }
    for (int i = 0; i < nb; i++) {
-      ne->terms[i + na].var = retain_unmanaged(b->terms[i].var);
+      ne->terms[i + na].var = b->terms[i].var->retain();
       ne->terms[i + na].coefficient = b->terms[i].coefficient;
    }
    return 1;
@@ -818,7 +817,7 @@ int lkiwi_expr_value(lua_State* L) {
    double sum = expr->constant;
    for (int i = 0; i < expr->term_count; i++) {
       const auto* t = &expr->terms[i];
-      sum += t->var->value() * t->coefficient;
+      sum += t->var->value_ * t->coefficient;
    }
    lua_pushnumber(L, sum);
    return 1;
@@ -830,7 +829,7 @@ int lkiwi_expr_terms(lua_State* L) {
    for (int i = 0; i < expr->term_count; i++) {
       const auto* t = &expr->terms[i];
       auto* new_term = term_new(L);
-      new_term->var = retain_unmanaged(t->var);
+      new_term->var = t->var->retain();
       new_term->coefficient = t->coefficient;
       lua_rawseti(L, -2, i + 1);
    }
@@ -849,7 +848,7 @@ int lkiwi_expr_m_tostring(lua_State* L) {
 
    for (int i = 0; i < expr->term_count; i++) {
       const auto* t = &expr->terms[i];
-      lua_pushfstring(L, "%f %s", t->coefficient, t->var->name().c_str());
+      lua_pushfstring(L, "%f %s", t->coefficient, t->var->name());
       luaL_addvalue(&buf);
       luaL_addstring(&buf, " + ");
    }
@@ -867,7 +866,7 @@ int lkiwi_expr_m_gc(lua_State* L) {
       release_unmanaged(expr->owner);
    } else {
       for (auto* t = expr->terms; t != expr->terms + expr->term_count; ++t) {
-         release_unmanaged(t->var);
+         t->var->release();
       }
    }
    return 0;
@@ -917,7 +916,7 @@ int lkiwi_expr_new(lua_State* L) {
 
    for (int i = 0; i < nterms; ++i, ++expr->term_count) {
       const auto* term = get_term(L, i + 2);
-      expr->terms[i].var = retain_unmanaged(term->var);
+      expr->terms[i].var = term->var->retain();
       expr->terms[i].coefficient = term->coefficient;
    }
    return 1;
@@ -991,7 +990,7 @@ int lkiwi_constraint_m_tostring(lua_State* L) {
    const auto& expr = c.expression();
 
    for (const auto& t : expr.terms()) {
-      lua_pushfstring(L, "%f %s", t.coefficient(), t.variable().name().c_str());
+      lua_pushfstring(L, "%f %s", t.coefficient(), t.variable().name());
       luaL_addvalue(&buf);
       luaL_addstring(&buf, " + ");
    }
