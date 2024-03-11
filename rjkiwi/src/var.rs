@@ -109,12 +109,7 @@ impl KiwiVar {
     }
 
     #[inline]
-    pub(crate) fn value(&self) -> c_double {
-        self.value_.get()
-    }
-
-    #[inline]
-    pub(crate) fn name(&self) -> String {
+    fn name(&self) -> String {
         let name = unsafe { &*self.name_.get() };
         name.as_cstr().to_string_lossy().into_owned()
     }
@@ -125,6 +120,11 @@ impl KiwiVar {
             var.as_ref().inc_count();
         }
         var
+    }
+
+    #[inline]
+    pub(crate) fn value(&self) -> c_double {
+        self.value_.get()
     }
 }
 
