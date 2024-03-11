@@ -131,7 +131,7 @@ vpath Cargo.% $(SRCDIR)/rjkiwi
 all: ljkiwi.$(LIB_EXT) $(if $(FRUST),rjkiwi.$(LIB_EXT))
 
 install:
-	$(CP) -f ljkiwi.$(LIB_EXT) rjkiwi.$(LIB_EXT) $(INST_LIBDIR)/
+	$(CP) -f ljkiwi.$(LIB_EXT) $(if $(FRUST),rjkiwi.$(LIB_EXT)) $(INST_LIBDIR)/
 	$(CP) -f kiwi.lua $(INST_LUADIR)/kiwi.lua
 
 clean:
