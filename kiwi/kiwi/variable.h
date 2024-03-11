@@ -12,25 +12,86 @@
 namespace kiwi
 {
 
+class SmallStr {
+public:
+    size_t len_;
+    union {
+        char *ptr_;
+        char inline_[16];
+    } d_;
+
+    SmallStr() : len_(0) { d_.inline_[0] = 0; }
+    explicit SmallStr(const char *str) {
+        if (!str) {
+            len_ = 0;
+            d_.inline_[0] = 0;
+            return;
+        }
+        len_ = std::strlen(str);
+        char *dest;
+        if (len_ > 15) {
+            d_.ptr_ = new char[len_ + 1];
+            dest = d_.ptr_;
+        } else {
+            dest = d_.inline_;
+        }
+        std::memcpy(dest, str, len_ + 1);
+    }
+
+    ~SmallStr() { if (len_ > 15) delete[] d_.ptr_; }
+    SmallStr(const SmallStr &other) : len_(other.len_) {
+        copy(other);
+    }
+
+    SmallStr(SmallStr &&other) noexcept : len_(other.len_) {
+        other.len_ = 0;
+        if (len_ > 15) {
+            d_.ptr_ = other.d_.ptr_;
+        } else {
+            std::memcpy(d_.inline_, other.d_.inline_, len_ + 1);
+        }
+    }
+
+    SmallStr& operator=(const SmallStr &other) {
+        if (this == &other) return *this;
+        if (len_ > 15) delete[] d_.ptr_;
+        len_ = other.len_;
+        copy(other);
+        return *this;
+    }
+
+    SmallStr& operator=(SmallStr &&other) noexcept {
+        std::swap(len_, other.len_);
+        std::swap(d_, other.d_);
+        return *this;
+    }
+
+    const char *c_str() const { return len_ > 15 ? d_.ptr_ : d_.inline_; }
+    explicit operator bool() const { return len_ != 0; }
+
+private:
+    void copy(const SmallStr &other) {
+        if (len_ > 15) {
+            d_.ptr_ = new char[len_ + 1];
+            std::memcpy(d_.ptr_, other.d_.ptr_, len_ + 1);
+        } else {
+            std::memcpy(d_.inline_, other.d_.inline_, len_ + 1);
+        }
+    }
+};
+
 class VariableData
 {
 public:
     std::size_t ref_count_;
     double value_;
-    char *name_;
+    SmallStr name_;
 
-    const char* name() const { return name_ ? name_ : ""; }
+    const char* name() const { return name_.c_str(); }
     void setName(const char *name)
     {
-        if (name_ != name) {
-            if (name_) delete[] name_;
-            auto len = name ? std::strlen(name) : 0;
-            if (len) {
-                name_ = new char[len + 1];
-                std::memcpy(name_, name, len + 1);
-            } else {
-                name_ = nullptr;
-            }
+        if (name_.c_str() != name) {
+            name_ = SmallStr(name);
         }
     }
 
@@ -53,7 +114,7 @@ public:
             delete this;
     }
 
-    ~VariableData() { if (name_) delete[] name_; }
+    ~VariableData() = default;
     VariableData(VariableData&) = delete;
     VariableData(VariableData&&) = delete;
     VariableData& operator=(VariableData&) = delete;
