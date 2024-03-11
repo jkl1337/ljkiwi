@@ -6,62 +6,90 @@
 | The full license is in the file LICENSE, distributed with this software.
 |----------------------------------------------------------------------------*/
 #pragma once
-#include <memory>
+#include <cstring>
 #include <string>
-#include "shareddata.h"
 
 namespace kiwi
 {
 
-class VariableData : public SharedData
+class VariableData
 {
 public:
-    VariableData(std::string name) : SharedData(),
-                                         m_name(std::move(name)),
-                                         m_value(0.0) {}
+    std::size_t ref_count_;
+    double value_;
+    char *name_;
 
-    VariableData(const char *name) : SharedData(),
-                                         m_name(name),
-                                         m_value(0.0) {}
+    const char* name() const { return name_ ? name_ : ""; }
+    void setName(const char *name)
+    {
+        if (name_ != name) {
+            if (name_) delete[] name_;
+            auto len = name ? std::strlen(name) : 0;
+            if (len) {
+                name_ = new char[len + 1];
+                std::memcpy(name_, name, len + 1);
+            } else {
+                name_ = nullptr;
+            }
+        }
+    }
 
-    ~VariableData() = default;
+    static VariableData* alloc(const char *name = nullptr) {
+        VariableData *data = new VariableData{1, 0.0};
+        try {
+            data->setName(name);
+        } catch (...) {
+            delete data;
+            throw;
+        }
+        return data;
+    }
 
-    const std::string &name() const { return m_name; }
-    void setName(const char *name) { m_name = name; }
-    void setName(const std::string &name) { m_name = name; }
+    void free() { delete this; }
 
-    double value() const { return m_value; }
-    void setValue(double value) { m_value = value; }
+    VariableData* retain() { ref_count_++; return this; }
+    void release() {
+        if (--ref_count_ == 0)
+            delete this;
+    }
 
-private:
-    std::string m_name;
-    double m_value;
-
-    VariableData(const VariableData &other) = delete;
-    VariableData &operator=(const VariableData &other) = delete;
+    ~VariableData() { if (name_) delete[] name_; }
+    VariableData(VariableData&) = delete;
+    VariableData(VariableData&&) = delete;
+    VariableData& operator=(VariableData&) = delete;
+    VariableData& operator=(VariableData&&) = delete;
 };
+
+static_assert(std::is_standard_layout<VariableData>::value == true, "VariableData must be standard layout");
 
 class Variable
 {
 public:
-    explicit Variable(VariableData *p) : m_data(p) {}
+    explicit Variable(VariableData *p) : m_data(p->retain()) {}
     VariableData *ptr() { return m_data; }
 
-    Variable() : m_data(new VariableData("")) {}
+    Variable() : m_data(VariableData::alloc()) {}
 
-    Variable(std::string name) : m_data(new VariableData(std::move(name))) {}
-    Variable(const char *name) : m_data(new VariableData(name)) {}
-    Variable(const Variable&) = default;
-    Variable(Variable&&) noexcept = default;
+    Variable(const char *name) : m_data(VariableData::alloc(name)) {}
+    Variable(std::string name) : Variable(name.c_str()) {}
 
-    ~Variable() = default;
+    Variable(const Variable& other) : m_data(other.m_data->retain()) {}
+    Variable(Variable&& other) noexcept {
+        m_data = other.m_data;
+        other.m_data = nullptr;
+    }
 
-    const std::string &name() const { return m_data->name(); }
+    ~Variable() {
+        if (m_data)
+            m_data->release();
+    }
+
+    const char *name() const { return m_data->name(); }
     void setName(const char *name) { m_data->setName(name); }
-    void setName(const std::string &name) { m_data->setName(name); }
+    void setName(const std::string &name) { m_data->setName(name.c_str()); }
 
-    double value() const { return m_data->value(); }
-    void setValue(double value) { m_data->setValue(value); }
+    double value() const { return m_data->value_; }
+    void setValue(double value) { m_data->value_ = value; }
 
     // operator== is used for symbolics
     bool equals(const Variable &other) const
@@ -69,12 +97,21 @@ public:
         return m_data == other.m_data;
     }
 
-    Variable& operator=(const Variable&) = default;
+    Variable& operator=(const Variable& other) {
+        if (m_data != other.m_data) {
+            m_data->release();
+            m_data = other.m_data->retain();
+        }
+        return *this;
+    }
 
-    Variable& operator=(Variable&&) noexcept = default;
+    Variable& operator=(Variable&& other) noexcept {
+        std::swap(m_data, other.m_data);
+        return *this;
+    }
 
 private:
-    SharedDataPtr<VariableData> m_data;
+    VariableData *m_data;
 
     friend bool operator<(const Variable &lhs, const Variable &rhs)
     {
