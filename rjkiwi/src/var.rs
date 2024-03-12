@@ -4,6 +4,7 @@ use core::{
 };
 use std::{
     alloc::{alloc, dealloc, handle_alloc_error, Layout},
+    borrow::Cow,
     cell::{Cell, UnsafeCell},
     ffi::CString,
     hash::{Hash, Hasher},
@@ -36,19 +37,25 @@ impl KiwiVarName {
                 }
             } else {
                 let mut data = KiwiVarNameData { inline: [0; 16] };
-                unsafe { data.inline[..len + 1].copy_from_slice(name.to_bytes_with_nul()) };
+                unsafe { data.inline[..=len].copy_from_slice(name.to_bytes_with_nul()) };
                 data
             },
         }
     }
 
+    fn as_ptr(&self) -> *const c_char {
+        if self.len > INLINE_NAME_LEN {
+            unsafe { self.data.ptr }
+        } else {
+            unsafe { self.data.inline.as_ptr() as *const c_char }
+        }
+    }
+
     fn as_cstr(&self) -> &CStr {
-        unsafe {
-            if self.len > INLINE_NAME_LEN {
-                CStr::from_ptr(self.data.ptr)
-            } else {
-                CStr::from_bytes_with_nul_unchecked(&self.data.inline[..=self.len + 1])
-            }
+        if self.len > INLINE_NAME_LEN {
+            unsafe { CStr::from_ptr(self.data.ptr) }
+        } else {
+            unsafe { CStr::from_bytes_with_nul_unchecked(&self.data.inline[..=self.len]) }
         }
     }
 
@@ -63,7 +70,7 @@ impl KiwiVarName {
             if self.len > INLINE_NAME_LEN {
                 self.data.ptr = name.to_owned().into_raw();
             } else {
-                self.data.inline[..self.len + 1].copy_from_slice(name.to_bytes_with_nul());
+                self.data.inline[..=self.len].copy_from_slice(name.to_bytes_with_nul());
             }
         }
     }
@@ -111,9 +118,9 @@ impl KiwiVar {
     }
 
     #[inline]
-    fn name(&self) -> String {
+    fn name(&self) -> Cow<'_, str> {
         let name = unsafe { &*self.name_.get() };
-        name.as_cstr().to_string_lossy().into_owned()
+        name.as_cstr().to_string_lossy()
     }
 
     #[inline]
@@ -272,7 +279,7 @@ pub unsafe extern "C" fn kiwi_var_set_value(var: *const KiwiVar, value: c_double
 #[no_mangle]
 pub unsafe extern "C" fn kiwi_var_name(var: *const KiwiVar) -> *const c_char {
     match NonNull::new(var as *mut KiwiVar) {
-        Some(var) => unsafe { &*var.as_ref().name_.get() }.as_cstr().as_ptr(),
+        Some(var) => unsafe { &*var.as_ref().name_.get() }.as_ptr(),
         None => CStr::from_bytes_with_nul_unchecked(b"\0").as_ptr(),
     }
 }
