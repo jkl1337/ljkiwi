@@ -452,10 +452,6 @@ do
       --- Change the name of the variable.
       ---@type fun(self: kiwi.Var, name: string)
       set_name = ljkiwi.kiwi_var_set_name,
-
-      --- Set the value of the variable.
-      ---@type fun(self: kiwi.Var, value: number)
-      set = ljkiwi.kiwi_var_set_value,
    }
 
    local Var_mt = {
