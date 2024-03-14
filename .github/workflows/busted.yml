@@ -56,6 +56,11 @@ jobs:
           FSANITIZE: ${{ matrix.os == 'ubuntu-latest' && !matrix.rust && '1' || '' }}
           FRUST: ${{ matrix.rust && '1' || '' }}
 
+      - name: Workaround kernel address randomization and ASAN
+        # https://github.com/actions/runner-images/issues/9491
+        run: sudo sysctl vm.mmap_rnd_bits=28
+        if: startsWith(matrix.os, 'ubuntu-')
+
       - name: Run busted tests
         run: |
           busted -c -v
